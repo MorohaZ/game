@@ -3,10 +3,11 @@ node_modules/
 
 # Production build outputs
 dist/
+public/pyodide/
 
 # Browser test temporary user profiles
-.browser-tmp-chromium/
-.firefox-tmp-firefox/
+.browser-tmp-*/
+.firefox-tmp-*/
 
 # Logs
 *.log

@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-10T04:15:01.351Z",
+  "timestamp": "2026-10-10T06:35:58.798Z",
   "environment": {
     "platform": "win32",
     "nodeVersion": "v22.16.0",
@@ -14,32 +14,16 @@
       "browserId": "chromium",
       "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
       "success": true,
-      "total": 17,
-      "passed": 17,
+      "total": 16,
+      "passed": 16,
       "failed": 0,
       "results": [
         {
-          "name": "Pyodide WebAssembly runtime loaded inside Browser Web Worker in 1577.1ms",
+          "name": "Zero COOP/COEP compliance: window.crossOriginIsolated is false",
           "pass": true
         },
         {
-          "name": "Browser Worker sandbox lockdown: self.fetch is undefined",
-          "pass": true
-        },
-        {
-          "name": "Browser Worker sandbox lockdown: self.XMLHttpRequest is undefined",
-          "pass": true
-        },
-        {
-          "name": "Browser Worker sandbox lockdown: self.WebSocket is undefined",
-          "pass": true
-        },
-        {
-          "name": "Python Virtual Socket Shim (sys.modules[\"socket\"]) injected",
-          "pass": true
-        },
-        {
-          "name": "Synchronous Python socket operations executed in Browser Worker in 9.9ms",
+          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 2526.3ms",
           "pass": true
         },
         {
@@ -63,63 +47,58 @@
           "pass": true
         },
         {
-          "name": "Python Adversarial Sandbox successfully blocked ctypes, pyodide_js, js, micropip, importlib escape",
-          "pass": true
-        },
-        {
           "name": "Python Memoryview zero-copy data transmission completed without DoS",
           "pass": true
         },
         {
-          "name": "Bridge capability token blocks unauthorized node switching",
+          "name": "Adversarial attack: _pyodide._importhook & jsfinder blocked",
           "pass": true
         },
         {
-          "name": "Bridge rejects node switching without security token",
+          "name": "Adversarial attack: _pyodide_core & trigger_fatal_error blocked",
           "pass": true
         },
         {
-          "name": "Deterministic Simulation Event Trace recorded 15 packets",
+          "name": "Adversarial attack: pyodide and pyodide.ffi blocked",
           "pass": true
         },
         {
-          "name": "Deterministic Virtual Clock advanced to tick #15",
+          "name": "Adversarial attack: ctypes, pyodide_js, js, micropip blocked",
+          "pass": true
+        },
+        {
+          "name": "Introspection Isolation: js_sim_core and _sim_core purged from globals",
+          "pass": true
+        },
+        {
+          "name": "Production Worker recorded deterministic simulation packet trace (20 events)",
+          "pass": true
+        },
+        {
+          "name": "Worker GET_SNAPSHOT returned valid topology snapshot",
+          "pass": true
+        },
+        {
+          "name": "Worker RESTORE_SNAPSHOT successfully restored simulator state",
           "pass": true
         }
-      ],
-      "durationMs": 2148
+      ]
     },
     {
       "browser": "Mozilla Firefox (Gecko)",
       "browserId": "firefox",
       "browserPath": "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
       "success": true,
-      "total": 17,
-      "passed": 17,
+      "total": 16,
+      "passed": 16,
       "failed": 0,
       "results": [
         {
-          "name": "Pyodide WebAssembly runtime loaded inside Browser Web Worker in 2341.0ms",
+          "name": "Zero COOP/COEP compliance: window.crossOriginIsolated is false",
           "pass": true
         },
         {
-          "name": "Browser Worker sandbox lockdown: self.fetch is undefined",
-          "pass": true
-        },
-        {
-          "name": "Browser Worker sandbox lockdown: self.XMLHttpRequest is undefined",
-          "pass": true
-        },
-        {
-          "name": "Browser Worker sandbox lockdown: self.WebSocket is undefined",
-          "pass": true
-        },
-        {
-          "name": "Python Virtual Socket Shim (sys.modules[\"socket\"]) injected",
-          "pass": true
-        },
-        {
-          "name": "Synchronous Python socket operations executed in Browser Worker in 9.0ms",
+          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 1976.0ms",
           "pass": true
         },
         {
@@ -143,31 +122,42 @@
           "pass": true
         },
         {
-          "name": "Python Adversarial Sandbox successfully blocked ctypes, pyodide_js, js, micropip, importlib escape",
-          "pass": true
-        },
-        {
           "name": "Python Memoryview zero-copy data transmission completed without DoS",
           "pass": true
         },
         {
-          "name": "Bridge capability token blocks unauthorized node switching",
+          "name": "Adversarial attack: _pyodide._importhook & jsfinder blocked",
           "pass": true
         },
         {
-          "name": "Bridge rejects node switching without security token",
+          "name": "Adversarial attack: _pyodide_core & trigger_fatal_error blocked",
           "pass": true
         },
         {
-          "name": "Deterministic Simulation Event Trace recorded 15 packets",
+          "name": "Adversarial attack: pyodide and pyodide.ffi blocked",
           "pass": true
         },
         {
-          "name": "Deterministic Virtual Clock advanced to tick #15",
+          "name": "Adversarial attack: ctypes, pyodide_js, js, micropip blocked",
+          "pass": true
+        },
+        {
+          "name": "Introspection Isolation: js_sim_core and _sim_core purged from globals",
+          "pass": true
+        },
+        {
+          "name": "Production Worker recorded deterministic simulation packet trace (20 events)",
+          "pass": true
+        },
+        {
+          "name": "Worker GET_SNAPSHOT returned valid topology snapshot",
+          "pass": true
+        },
+        {
+          "name": "Worker RESTORE_SNAPSHOT successfully restored simulator state",
           "pass": true
         }
-      ],
-      "durationMs": 4191
+      ]
     }
   ]
 }

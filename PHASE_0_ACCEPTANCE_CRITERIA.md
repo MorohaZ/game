@@ -45,15 +45,16 @@ The full structured verification payload is recorded in [`browser-test-results.j
 
 | Threat Vector | Mitigation Mechanism | Verification Test |
 | :--- | :--- | :--- |
-| **Browser API Escape** | Worker Scope Lockdown: `self.fetch`, `self.XMLHttpRequest`, `self.WebSocket`, `self.indexedDB`, `self.importScripts`, `self.Worker`, `self.SharedWorker`, `self.BroadcastChannel`, and `navigator.sendBeacon` are revoked (`undefined`) before executing untrusted Python. | Browser E2E Tests 2, 3, 4 |
+| **Internal Pyodide Hook Bypass** | `_pyodide._importhook` and `_pyodide_core` are completely blocked. `jsfinder.jsproxies` is purged and uninstalled; direct and indirect imports (`importlib`, `__import__`) of all `_pyodide*` and `pyodide*` packages are blocked at `sys.meta_path[0]`. | Python Test 15 & Browser Test 9, 10, 11 |
+| **Worker Scope Lockdown (Fail-Closed)** | `self.fetch`, `self.XMLHttpRequest`, `self.WebSocket`, `self.indexedDB`, `self.importScripts`, `self.Worker`, `self.SharedWorker`, `self.BroadcastChannel`, and `navigator.sendBeacon` are made non-writable `undefined` with strict fail-closed assertion checks. | Browser E2E Tests & Production Worker Bundle |
+| **Browser DOM / JS Escape via FFI** | `js` and `pyodide_js` modules are deleted from `sys.modules`, unregistered via `unregister_js_module`, forbidden in `sys.meta_path` `_SandboxFinder`, blocked in `importlib.import_module`, and `pyodide.code.run_js` is deleted. | Python Acceptance Test 15, 15b, 15c |
 | **Low-Level Native Memory Access** | `ctypes` and `_posixsubprocess` modules are deleted from `sys.modules`, hooked in `sys.meta_path`, and blocked in `importlib`. | Node & Browser Tests (blocked) |
-| **Browser DOM / JS Escape via FFI** | `js` and `pyodide_js` modules are deleted from `sys.modules`, forbidden in `sys.meta_path` `_SandboxFinder`, blocked in `importlib.import_module`, and `pyodide.code.run_js` is deleted. | Python Acceptance Test 15, 15b, 15c |
 | **Arbitrary Package Installation** | `micropip` module is revoked, blocked in `sys.meta_path`, and forbidden in import hooks. | Python Acceptance Test 15 |
 | **Global Object Introspection** | Global references (`js_sim_core`, `_sim_core_bridge`) are purged from globals immediately after bootstrapping the socket shim. | Python Acceptance Test 15 |
-| **Closure & Reflection Introspection** | The object exposed to Python is a restricted `VirtualSocketFacade` containing only socket methods. Administrative methods (`setNodeId`, `setDnsProtectionEnabled`, `getSnapshot`, `restoreSnapshot`, `addDnsRecord`), security tokens, and internal simulator (`#sim`) are strictly absent. | Python Acceptance Test 15d & Browser Test 7b |
+| **Closure & Reflection Introspection** | The object exposed to Python is a restricted `VirtualSocketFacade` containing only socket methods. Administrative methods (`setNodeId`, `setDnsProtectionEnabled`, `getSnapshot`, `restoreSnapshot`, `addDnsRecord`), security tokens, and internal simulator (`#sim`) are strictly absent. | Python Acceptance Test 15d & Browser Test 14 |
 | **Cross-Node FD Tampering** | Bridge verifies active node ownership on every socket FD (`s.ownerNodeId === this.#defaultNodeId`). Scripts cannot read, send, or close sockets belonging to other nodes. | Bridge Test 2g3 |
-| **Capability Token Security** | Strict mandatory token validation: `setNodeId(nodeId, token)` rejects calls without a valid token (`!token || token !== this.#sessionToken`). Token omission bypass is eliminated. | Bridge Test 2g, 2g2 & Browser Test 14, 15 |
-| **Buffer Memory Exhaustion (DoS)** | Python `_to_bytes` replaces `list(data)` with `memoryview(raw).tobytes()`. Node buffer capped at 8MB, socket buffer at 1MB, payload at 1MB. | Bridge Test 13 & Browser Test 13 |
+| **Cryptographic Token Security** | `generateSecureToken()` utilizes `crypto.getRandomValues()` (20-byte random nonce) rather than pseudo-random generators. Mandatory token validation rejects calls without a valid token. | Bridge Test 2g, 2g2 & Production Worker |
+| **Buffer Memory Exhaustion (DoS)** | Python `_to_bytes` replaces `list(data)` with zero-copy `memoryview(raw).tobytes()`. Node buffer capped at 8MB, socket buffer at 1MB, payload at 1MB. | Bridge Test 13 & Browser Test 8 |
 
 ---
 

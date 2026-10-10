@@ -2,6 +2,7 @@ import { NetworkSimulator } from '../core/NetworkSimulator';
 import { createDefaultTopology } from '../core/default-topology';
 import { VirtualSocketBridge } from '../bridge/VirtualSocketBridge';
 import { PYTHON_SOCKET_SHIM_CODE } from '../bridge/python-socket-shim';
+import { generateSecureToken } from '../core/types';
 import {
   WorkerInMessage,
   WorkerOutMessage,
@@ -15,59 +16,99 @@ let bridge: VirtualSocketBridge | null = null;
 let pyodide: any = null;
 let isReady = false;
 let initPromise: Promise<void> | null = null;
-const workerSessionToken = 'cap-tok-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+const workerSessionToken = generateSecureToken();
 
 function postMsg(msg: WorkerOutMessage): void {
   self.postMessage(msg);
 }
 
-async function loadPyodideRuntime(): Promise<any> {
-  if (pyodide) return pyodide;
+function enforceWorkerScopeLockdown(): void {
+  const g = self as any;
+  const dangerousAPIs = [
+    'fetch',
+    'XMLHttpRequest',
+    'WebSocket',
+    'indexedDB',
+    'importScripts',
+    'Worker',
+    'SharedWorker',
+    'BroadcastChannel',
+    'openDatabase',
+  ];
 
-  // 1. Already loaded on global scope
-  if (typeof (self as any).loadPyodide === 'function') {
-    return await (self as any).loadPyodide({
-      indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/',
-    });
-  }
-
-  // 2. Classic Worker importScripts
-  if (typeof importScripts === 'function') {
+  for (const api of dangerousAPIs) {
     try {
-      importScripts('https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js');
-      if (typeof (self as any).loadPyodide === 'function') {
-        return await (self as any).loadPyodide({
-          indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/',
-        });
-      }
+      delete g[api];
+      Object.defineProperty(g, api, {
+        value: undefined,
+        writable: false,
+        configurable: false,
+      });
     } catch {
-      // Continue to ESM imports
+      try {
+        g[api] = undefined;
+      } catch (err) {
+        throw new Error(`CRITICAL SECURITY FAILURE: Failed to neutralize Worker API '${api}': ${err}`);
+      }
+    }
+
+    // Strict fail-closed verification
+    if (typeof g[api] !== 'undefined') {
+      throw new Error(`CRITICAL SECURITY FAILURE: Worker API '${api}' remained accessible after lockdown.`);
     }
   }
 
-  // 3. Bundled npm package
+  if (g.navigator && 'sendBeacon' in g.navigator) {
+    try {
+      delete g.navigator.sendBeacon;
+      g.navigator.sendBeacon = undefined;
+    } catch {
+      // Non-fatal if navigator is read-only in some runtimes, but ensure undefined
+    }
+  }
+}
+
+async function loadPyodideRuntime(): Promise<any> {
+  if (pyodide) return pyodide;
+
+  let localIndexURL = '/pyodide/';
+  if (typeof self !== 'undefined' && self.location && self.location.origin) {
+    localIndexURL = `${self.location.origin}/pyodide/`;
+  }
+
+  // 1. Pre-loaded on global scope (if any)
+  if (typeof (self as any).loadPyodide === 'function') {
+    return await (self as any).loadPyodide({
+      indexURL: localIndexURL,
+    });
+  }
+
+  // 2. ESM dynamic import of local Pyodide bundle
+  try {
+    const pyodideUrl = `${localIndexURL}pyodide.mjs`;
+    const pyodideModule = await import(/* @vite-ignore */ pyodideUrl);
+    if (typeof pyodideModule.loadPyodide === 'function') {
+      return await pyodideModule.loadPyodide({
+        indexURL: localIndexURL,
+      });
+    }
+  } catch {
+    // Continue to package import
+  }
+
+  // 3. Bundled npm package fallback
   try {
     const pyodideModule = await import('pyodide');
     if (typeof pyodideModule.loadPyodide === 'function') {
       return await pyodideModule.loadPyodide({
-        indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/',
+        indexURL: localIndexURL,
       });
     }
-  } catch {
-    // Continue to CDN ESM
+  } catch (e: any) {
+    throw new Error(`Failed to load local Pyodide WebAssembly runtime from '${localIndexURL}': ${e?.message || e}`);
   }
 
-  // 4. Remote CDN ESM dynamic import
-  try {
-    const pyodideModule = await import(
-      /* @vite-ignore */ 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.mjs'
-    );
-    return await pyodideModule.loadPyodide({
-      indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/',
-    });
-  } catch (e: any) {
-    throw new Error(`Failed to load Pyodide runtime: ${e?.message || e}`);
-  }
+  throw new Error(`Unable to initialize Pyodide runtime from local assets.`);
 }
 
 async function doInitialize(): Promise<void> {
@@ -91,24 +132,8 @@ async function doInitialize(): Promise<void> {
       // If delete is not supported on globals map, fallback
     }
 
-    // Worker Scope Hardening: strip dangerous capabilities before user code runs
-    try {
-      const g = self as any;
-      g.fetch = undefined;
-      g.XMLHttpRequest = undefined;
-      g.WebSocket = undefined;
-      g.indexedDB = undefined;
-      g.importScripts = undefined;
-      g.Worker = undefined;
-      g.SharedWorker = undefined;
-      g.BroadcastChannel = undefined;
-      if (g.navigator) {
-        g.navigator.sendBeacon = undefined;
-      }
-      g.openDatabase = undefined;
-    } catch {
-      // Continue
-    }
+    // Fail-Closed Worker Scope Hardening: strip dangerous capabilities before user code runs
+    enforceWorkerScopeLockdown();
 
     isReady = true;
     postMsg({

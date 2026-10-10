@@ -1,5 +1,5 @@
 import { NetworkSimulator, isValidIPv4 } from '../core/NetworkSimulator';
-import { ConnectResult, BindResult, AcceptResult, Errno, PacketTraceEntry, RESOURCE_LIMITS, SimulatorSnapshot } from '../core/types';
+import { ConnectResult, BindResult, AcceptResult, Errno, PacketTraceEntry, RESOURCE_LIMITS, SimulatorSnapshot, generateSecureToken } from '../core/types';
 
 /**
  * Restricted client socket facade exposed to Python runtime.
@@ -46,7 +46,7 @@ export class VirtualSocketBridge implements VirtualSocketFacade {
   constructor(sim: NetworkSimulator, defaultNodeId: string = 'attacker-pc', token?: string) {
     this.#sim = sim;
     this.#defaultNodeId = defaultNodeId;
-    this.#sessionToken = token || ('cap-tok-' + Math.random().toString(36).slice(2) + Date.now().toString(36));
+    this.#sessionToken = token || generateSecureToken();
     this.#dnsTable = {
       'localhost': '127.0.0.1',
       'corp.local': '192.168.1.10',

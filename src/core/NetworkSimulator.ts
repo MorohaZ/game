@@ -220,9 +220,19 @@ export class NetworkSimulator {
   public getSnapshot(dnsTable?: Record<string, string>, missionConfig?: any): SimulatorSnapshot {
     const serializedNodes: NetworkNode[] = [];
     for (const node of this.nodes.values()) {
+      const serializedPorts: Record<number, PortConfig> = {};
+      for (const [portStr, portConfig] of Object.entries(node.ports)) {
+        const portNum = Number(portStr);
+        serializedPorts[portNum] = {
+          port: portConfig.port,
+          state: portConfig.state,
+          service: portConfig.service,
+          banner: portConfig.banner,
+        };
+      }
       serializedNodes.push({
         ...node,
-        ports: { ...node.ports },
+        ports: serializedPorts,
         firewallRules: node.firewallRules ? [...node.firewallRules] : undefined,
         interfaces: node.interfaces ? JSON.parse(JSON.stringify(node.interfaces)) : undefined,
       });
@@ -247,6 +257,18 @@ export class NetworkSimulator {
     if (snapshot.nodes) {
       for (const n of snapshot.nodes) {
         this.addNode(n);
+        if (n.ports && n.ports[80] && n.ports[80].service === 'http' && !n.ports[80].responseHandler) {
+          n.ports[80].responseHandler = (reqData: Uint8Array) => {
+            if (!reqData || reqData.length === 0 || reqData.length > 1024 * 1024) return new Uint8Array(0);
+            const body = JSON.stringify({
+              status: 'online',
+              service: 'Corporate Intranet Portal',
+              protocol: 'Zero-Day Protocol v1.0',
+            });
+            const httpRes = `HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${new TextEncoder().encode(body).length}\r\nConnection: close\r\n\r\n` + body;
+            return new TextEncoder().encode(httpRes);
+          };
+        }
       }
     }
   }

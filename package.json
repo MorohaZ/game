@@ -5,10 +5,16 @@
   "description": "NetSec: Zero-Day Protocol - Phase 0 Proof-of-Concept Spike",
   "type": "module",
   "scripts": {
+    "sync-shim": "node scripts/sync-shim.mjs",
+    "copy-assets": "node scripts/copy-pyodide.mjs",
+    "predev": "node scripts/sync-shim.mjs && node scripts/copy-pyodide.mjs",
+    "prebuild": "node scripts/sync-shim.mjs && node scripts/copy-pyodide.mjs",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node test-runner.mjs"
+    "test": "node test-runner.mjs",
+    "test:unit": "node test-runner.mjs --unit-only",
+    "test:browser": "node test-runner.mjs --browser-only"
   },
   "dependencies": {
     "pyodide": "^0.26.4"

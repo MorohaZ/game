@@ -473,29 +473,57 @@ _bootstrap_socket_shim(js_sim_core)
 del _bootstrap_socket_shim
 
 # --- Adversarial Sandbox Hardening ---
-_BLOCKED_MODS = {
+
+# 1. Neutralize and unregister internal Pyodide JS module registrations
+try:
+    import _pyodide._importhook as _py_hook
+    if hasattr(_py_hook, 'unregister_js_module'):
+        for _m in ['js', 'pyodide_js']:
+            try:
+                _py_hook.unregister_js_module(_m)
+            except Exception:
+                pass
+    if hasattr(_py_hook, 'jsfinder') and hasattr(_py_hook.jsfinder, 'jsproxies'):
+        _py_hook.jsfinder.jsproxies.clear()
+except Exception:
+    pass
+
+_BLOCKED_MODULE_NAMES = {
     'js', 'pyodide_js', 'ctypes', '_posixsubprocess',
-    'micropip', 'pyodide.ffi', 'pyodide.code'
+    'micropip', 'pyodide.ffi', 'pyodide.code',
+    '_pyodide', '_pyodide_core', 'pyodide',
+    '_pyodide._importhook'
 }
 
-# 1. Custom MetaPathFinder to block imports at the lowest Python module resolution level
+def _is_forbidden_module(fullname):
+    if not fullname:
+        return False
+    base = fullname.split('.')[0]
+    if fullname in _BLOCKED_MODULE_NAMES or base in {
+        'js', 'pyodide_js', 'ctypes', '_posixsubprocess',
+        'micropip', '_pyodide', '_pyodide_core', 'pyodide'
+    }:
+        return True
+    if (fullname.startswith('pyodide.') or
+        fullname.startswith('_pyodide.') or
+        fullname.startswith('_pyodide_core')):
+        return True
+    return False
+
+# 2. Custom MetaPathFinder to block imports at the lowest Python module resolution level
 class _SandboxFinder:
     def find_spec(self, fullname, path, target=None):
-        base = fullname.split('.')[0]
-        if fullname in _BLOCKED_MODS or base in {'js', 'pyodide_js', 'ctypes', '_posixsubprocess', 'micropip'}:
-            raise ImportError(f"Importing '{fullname}' is restricted by sandbox security policy")
-        if fullname.startswith('pyodide.ffi') or fullname.startswith('pyodide.code'):
-            raise ImportError(f"Importing '{fullname}' is restricted by sandbox security policy")
+        if _is_forbidden_module(fullname):
+            raise ImportError(f"Access to '{fullname}' is restricted by sandbox security policy")
         return None
 
 sys.meta_path.insert(0, _SandboxFinder())
 
-# 2. Hook __builtins__.__import__ and builtins.__import__
+# 3. Hook __builtins__.__import__ and builtins.__import__
 def _make_safe_import(original_import):
     def _safe_import(name, *args, **kwargs):
-        base = name.split('.')[0]
-        if base in {'js', 'pyodide_js', 'ctypes', '_posixsubprocess', 'micropip'} or name.startswith(('pyodide.ffi', 'pyodide.code')):
-            raise ImportError(f"Importing '{name}' is restricted by sandbox security policy")
+        if _is_forbidden_module(name):
+            raise ImportError(f"Access to '{name}' is restricted by sandbox security policy")
         return original_import(name, *args, **kwargs)
     return _safe_import
 
@@ -515,20 +543,19 @@ try:
 except Exception:
     pass
 
-# 3. Hook importlib.import_module if present
+# 4. Hook importlib.import_module if present
 try:
     import importlib
     _real_import_mod = importlib.import_module
     def _safe_import_mod(name, package=None):
-        base = name.split('.')[0]
-        if base in {'js', 'pyodide_js', 'ctypes', '_posixsubprocess', 'micropip'} or name.startswith(('pyodide.ffi', 'pyodide.code')):
-            raise ImportError(f"Importing '{name}' is restricted by sandbox security policy")
+        if _is_forbidden_module(name):
+            raise ImportError(f"Access to '{name}' is restricted by sandbox security policy")
         return _real_import_mod(name, package)
     importlib.import_module = _safe_import_mod
 except Exception:
     pass
 
-# 4. Strip pyodide dangerous sub-APIs
+# 5. Strip dangerous pyodide sub-APIs
 try:
     import pyodide
     if hasattr(pyodide, 'code') and hasattr(pyodide.code, 'run_js'):
@@ -536,13 +563,22 @@ try:
 except Exception:
     pass
 
-# 5. Revoke blocked modules from sys.modules
-for mod_name in ['pyodide_js', 'ctypes', 'js', '_posixsubprocess', 'micropip']:
-    if mod_name in sys.modules:
-        del sys.modules[mod_name]
+# 6. Revoke blocked modules from sys.modules
+for mod_name in list(sys.modules.keys()):
+    if _is_forbidden_module(mod_name):
+        try:
+            del sys.modules[mod_name]
+        except Exception:
+            pass
+        sys.modules[mod_name] = None
+
+for mod_name in ['pyodide_js', 'ctypes', 'js', '_posixsubprocess', 'micropip', '_pyodide', '_pyodide_core', 'pyodide']:
     sys.modules[mod_name] = None
 
-# 6. Cleanup global namespace: purge bridge references
-for key in ['js_sim_core', '_sim_core', '_sim_core_bridge']:
+# 7. Cleanup global namespace: purge bridge references and temporary variables
+for key in [
+    'js_sim_core', '_sim_core', '_sim_core_bridge',
+    '_py_hook', '_m'
+]:
     if key in globals():
         del globals()[key]

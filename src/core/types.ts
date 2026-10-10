@@ -198,3 +198,13 @@ export interface SimulatorSnapshot {
   };
 }
 
+export function generateSecureToken(prefix: string = 'cap-tok'): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint8Array(20);
+    crypto.getRandomValues(bytes);
+    return `${prefix}-${Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')}`;
+  }
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+
