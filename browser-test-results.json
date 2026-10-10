@@ -1,0 +1,173 @@
+{
+  "timestamp": "2026-10-10T04:15:01.351Z",
+  "environment": {
+    "platform": "win32",
+    "nodeVersion": "v22.16.0",
+    "coopCoepRequired": false,
+    "staticHostingCompatible": true
+  },
+  "browsersTestedCount": 2,
+  "allPassed": true,
+  "browserResults": [
+    {
+      "browser": "Google Chrome (Chromium)",
+      "browserId": "chromium",
+      "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "success": true,
+      "total": 17,
+      "passed": 17,
+      "failed": 0,
+      "results": [
+        {
+          "name": "Pyodide WebAssembly runtime loaded inside Browser Web Worker in 1577.1ms",
+          "pass": true
+        },
+        {
+          "name": "Browser Worker sandbox lockdown: self.fetch is undefined",
+          "pass": true
+        },
+        {
+          "name": "Browser Worker sandbox lockdown: self.XMLHttpRequest is undefined",
+          "pass": true
+        },
+        {
+          "name": "Browser Worker sandbox lockdown: self.WebSocket is undefined",
+          "pass": true
+        },
+        {
+          "name": "Python Virtual Socket Shim (sys.modules[\"socket\"]) injected",
+          "pass": true
+        },
+        {
+          "name": "Synchronous Python socket operations executed in Browser Worker in 9.9ms",
+          "pass": true
+        },
+        {
+          "name": "Python socket.connect(192.168.1.10:80) and HTTP exchange completed synchronously",
+          "pass": true
+        },
+        {
+          "name": "Python socket.connect_ex(192.168.1.10:22) returned 111 (ECONNREFUSED / TCP RST)",
+          "pass": true
+        },
+        {
+          "name": "Python socket.connect_ex(10.0.0.1:80) returned 110 (ETIMEDOUT / TCP Drop)",
+          "pass": true
+        },
+        {
+          "name": "Python socket.connect_ex(172.16.50.1:80) returned 113 (EHOSTUNREACH)",
+          "pass": true
+        },
+        {
+          "name": "Python DNS transparent resolution resolved \"corp.local\" synchronously",
+          "pass": true
+        },
+        {
+          "name": "Python Adversarial Sandbox successfully blocked ctypes, pyodide_js, js, micropip, importlib escape",
+          "pass": true
+        },
+        {
+          "name": "Python Memoryview zero-copy data transmission completed without DoS",
+          "pass": true
+        },
+        {
+          "name": "Bridge capability token blocks unauthorized node switching",
+          "pass": true
+        },
+        {
+          "name": "Bridge rejects node switching without security token",
+          "pass": true
+        },
+        {
+          "name": "Deterministic Simulation Event Trace recorded 15 packets",
+          "pass": true
+        },
+        {
+          "name": "Deterministic Virtual Clock advanced to tick #15",
+          "pass": true
+        }
+      ],
+      "durationMs": 2148
+    },
+    {
+      "browser": "Mozilla Firefox (Gecko)",
+      "browserId": "firefox",
+      "browserPath": "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
+      "success": true,
+      "total": 17,
+      "passed": 17,
+      "failed": 0,
+      "results": [
+        {
+          "name": "Pyodide WebAssembly runtime loaded inside Browser Web Worker in 2341.0ms",
+          "pass": true
+        },
+        {
+          "name": "Browser Worker sandbox lockdown: self.fetch is undefined",
+          "pass": true
+        },
+        {
+          "name": "Browser Worker sandbox lockdown: self.XMLHttpRequest is undefined",
+          "pass": true
+        },
+        {
+          "name": "Browser Worker sandbox lockdown: self.WebSocket is undefined",
+          "pass": true
+        },
+        {
+          "name": "Python Virtual Socket Shim (sys.modules[\"socket\"]) injected",
+          "pass": true
+        },
+        {
+          "name": "Synchronous Python socket operations executed in Browser Worker in 9.0ms",
+          "pass": true
+        },
+        {
+          "name": "Python socket.connect(192.168.1.10:80) and HTTP exchange completed synchronously",
+          "pass": true
+        },
+        {
+          "name": "Python socket.connect_ex(192.168.1.10:22) returned 111 (ECONNREFUSED / TCP RST)",
+          "pass": true
+        },
+        {
+          "name": "Python socket.connect_ex(10.0.0.1:80) returned 110 (ETIMEDOUT / TCP Drop)",
+          "pass": true
+        },
+        {
+          "name": "Python socket.connect_ex(172.16.50.1:80) returned 113 (EHOSTUNREACH)",
+          "pass": true
+        },
+        {
+          "name": "Python DNS transparent resolution resolved \"corp.local\" synchronously",
+          "pass": true
+        },
+        {
+          "name": "Python Adversarial Sandbox successfully blocked ctypes, pyodide_js, js, micropip, importlib escape",
+          "pass": true
+        },
+        {
+          "name": "Python Memoryview zero-copy data transmission completed without DoS",
+          "pass": true
+        },
+        {
+          "name": "Bridge capability token blocks unauthorized node switching",
+          "pass": true
+        },
+        {
+          "name": "Bridge rejects node switching without security token",
+          "pass": true
+        },
+        {
+          "name": "Deterministic Simulation Event Trace recorded 15 packets",
+          "pass": true
+        },
+        {
+          "name": "Deterministic Virtual Clock advanced to tick #15",
+          "pass": true
+        }
+      ],
+      "durationMs": 4191
+    }
+  ]
+}

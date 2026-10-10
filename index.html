@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NetSec: Zero-Day Protocol - Phase 0 Proof-of-Concept</title>
+    <link rel="stylesheet" href="/src/ui/styles.css" />
+  </head>
+  <body>
+    <header>
+      <div class="logo-group">
+        <h1>NETSEC // ZERO-DAY PROTOCOL</h1>
+        <div class="subtitle">Phase 0 Spike: Co-located Pyodide + Deterministic Network Simulator Core</div>
+      </div>
+      <div class="status-group">
+        <div id="packet-count" class="badge">0 packets</div>
+        <div id="status-badge" class="badge loading">Pyodide: Initializing...</div>
+      </div>
+    </header>
+
+    <div class="topology-preview">
+      <span style="color: #64748b; font-weight: bold;">ACTIVE TOPOLOGY:</span>
+      <span class="node-chip">Attacker [192.168.1.5]</span>
+      <span class="node-chip" style="border-color: #059669; color: #6ee7b7;">Corp-Web [192.168.1.10:80 OPEN, 22 CLOSED]</span>
+      <span class="node-chip" style="border-color: #d97706; color: #fcd34d;">Firewalled [10.0.0.1:80 FILTERED]</span>
+    </div>
+
+    <div class="main-container">
+      <!-- Left Panel: Python Script Editor -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>PYTHON MONACO / EDITOR SHIM</span>
+          <span style="color: #64748b;">sys.modules['socket'] injected</span>
+        </div>
+        <div class="toolbar">
+          <button class="primary" id="btn-run" disabled>▶ Run Python in Worker</button>
+          <button data-preset="full">All Tests</button>
+          <button data-preset="open">Port 80 (Open)</button>
+          <button data-preset="closed">Port 22 (RST)</button>
+          <button data-preset="filtered">10.0.0.1 (Drop)</button>
+          <button data-preset="watchdog">Watchdog Loop</button>
+        </div>
+        <textarea id="code-input" spellcheck="false"></textarea>
+      </div>
+
+      <!-- Right Panel: Terminal Output -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>WORKER STDOUT / STDERR LOG</span>
+          <button id="btn-clear" style="padding: 2px 8px; font-size: 0.75rem;">Clear</button>
+        </div>
+        <div id="terminal" class="terminal-view"></div>
+      </div>
+
+      <!-- Bottom Panel: Simulation Event Trace -->
+      <div class="trace-container">
+        <div class="panel-header">
+          <span>SIMULATION EVENT TRACE (DETERMINISTIC PACKET LOG)</span>
+          <span style="color: #64748b;">Deterministic Ticks & L4 Headers</span>
+        </div>
+        <div class="trace-table-wrapper">
+          <table class="trace-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Virtual Clock</th>
+                <th>Source</th>
+                <th>Destination</th>
+                <th>Protocol / Flags</th>
+                <th>Status</th>
+                <th>Reason / Description</th>
+              </tr>
+            </thead>
+            <tbody id="trace-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/ui/app.ts"></script>
+  </body>
+</html>
