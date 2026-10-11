@@ -1,6 +1,7 @@
 {
-  "timestamp": "2026-10-10T09:52:04.129Z",
-  "commit": "7c6086e8ddf48ad2ffd97c733c883484e7beb85e",
+  "timestamp": "2026-10-11T02:51:36.213Z",
+  "commit": "1d841e59ffe89b5601d59113b0008e2c32cc2719",
+  "dirty": true,
   "pyodideVersion": "0.26.4",
   "environment": {
     "platform": "win32",
@@ -9,6 +10,7 @@
     "staticHostingCompatible": true
   },
   "browsersTestedCount": 2,
+  "durationMs": 8251,
   "allPassed": true,
   "browserResults": [
     {
@@ -16,9 +18,10 @@
       "browserId": "chromium",
       "browserVersion": "Google Chrome (Chromium) 154.0.8037.98",
       "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "durationMs": 5441,
       "success": true,
-      "total": 33,
-      "passed": 30,
+      "total": 34,
+      "passed": 31,
       "failed": 0,
       "xfail": 3,
       "results": [
@@ -27,7 +30,11 @@
           "pass": true
         },
         {
-          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 2897.2ms",
+          "name": "CSP active enforcement: Function/eval execution blocked without unsafe-eval",
+          "pass": true
+        },
+        {
+          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 3277.7ms",
           "pass": true
         },
         {
@@ -167,9 +174,10 @@
       "browserId": "firefox",
       "browserVersion": "Mozilla Firefox 157.0.1",
       "browserPath": "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
+      "durationMs": 2810,
       "success": true,
-      "total": 33,
-      "passed": 30,
+      "total": 34,
+      "passed": 31,
       "failed": 0,
       "xfail": 3,
       "results": [
@@ -178,7 +186,11 @@
           "pass": true
         },
         {
-          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 3687.0ms",
+          "name": "CSP active enforcement: Function/eval execution blocked without unsafe-eval",
+          "pass": true
+        },
+        {
+          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 1912.0ms",
           "pass": true
         },
         {

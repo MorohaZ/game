@@ -124,7 +124,12 @@ export function getAvailableBrowsers() {
   return available;
 }
 
+export const DEFAULT_CSP_HEADER = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self'; style-src 'self' 'unsafe-inline';";
+export const DEFAULT_WORKER_CSP_HEADER = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self';";
+
 export function createTestServer(options = {}) {
+  const effectiveCsp = options.cspHeader !== undefined ? options.cspHeader : DEFAULT_CSP_HEADER;
+  const effectiveWorkerCsp = options.workerCspHeader !== undefined ? options.workerCspHeader : DEFAULT_WORKER_CSP_HEADER;
   const shimCode = fs.readFileSync(shimPath, 'utf-8');
   
   // Use production built sim-worker bundle
@@ -152,8 +157,8 @@ export function createTestServer(options = {}) {
 
       if (url.pathname === '/' || url.pathname === '/index.html') {
         const headers = { 'Content-Type': 'text/html; charset=utf-8' };
-        if (options.cspHeader) {
-          headers['Content-Security-Policy'] = options.cspHeader;
+        if (effectiveCsp) {
+          headers['Content-Security-Policy'] = effectiveCsp;
         }
         res.writeHead(200, headers);
         res.end(`<!DOCTYPE html>
@@ -166,8 +171,15 @@ export function createTestServer(options = {}) {
   <h2>[Headless Browser Production Web Worker E2E Test Harness]</h2>
   <div id="status" style="color: #38bdf8; margin-bottom: 10px;">Initializing Production Web Worker...</div>
   <pre id="log" style="background: #1e293b; padding: 15px; border-radius: 8px; max-height: 500px; overflow: auto;"></pre>
+  <script type="module" src="/harness.js"></script>
+</body>
+</html>`);
+        return;
+      }
 
-  <script type="module">
+      if (url.pathname === '/harness.js') {
+        res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+        res.end(`
     const statusEl = document.getElementById('status');
     const logEl = document.getElementById('log');
     const results = [];
@@ -199,6 +211,17 @@ export function createTestServer(options = {}) {
       try {
         log('1. Checking Browser Hosting Isolation (Zero COOP/COEP)...');
         recordAssert(window.crossOriginIsolated === false, 'Zero COOP/COEP compliance: window.crossOriginIsolated is false');
+
+        log('1b. Checking Content Security Policy (CSP) Enforcement...');
+        let functionEvalBlocked = false;
+        try {
+          const fn = new Function('return 42');
+          fn();
+          functionEvalBlocked = false;
+        } catch (evalErr) {
+          functionEvalBlocked = true;
+        }
+        recordAssert(functionEvalBlocked, 'CSP active enforcement: Function/eval execution blocked without unsafe-eval');
 
         log('2. Spawning Production Web Worker (/worker.js)...');
         const worker = new Worker('/worker.js', { type: 'module' });
@@ -574,16 +597,14 @@ print("__GAP_RESULTS__:" + json.dumps(gap_res))
     }
 
     run();
-  </script>
-</body>
-</html>`);
+`);
         return;
       }
 
       if (url.pathname === '/worker.js') {
         const headers = { 'Content-Type': 'application/javascript; charset=utf-8' };
-        if (options.workerCspHeader || options.cspHeader) {
-          headers['Content-Security-Policy'] = options.workerCspHeader || options.cspHeader;
+        if (effectiveWorkerCsp) {
+          headers['Content-Security-Policy'] = effectiveWorkerCsp;
         }
         res.writeHead(200, headers);
         res.end(workerCode);
@@ -726,13 +747,16 @@ export async function runBrowserTest(browserTarget, options = {}) {
     browserProcess = spawn(browserTarget.path, [testUrl]);
   }
 
+  const tBrowserStart = performance.now();
   try {
     const report = await waitForReport(45000);
+    const durationMs = Math.round(performance.now() - tBrowserStart);
     return {
       browser: browserTarget.name,
       browserId: browserTarget.id,
       browserVersion,
       browserPath: browserTarget.path,
+      durationMs,
       ...report,
     };
   } finally {

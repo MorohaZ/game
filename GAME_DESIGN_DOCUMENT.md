@@ -22,7 +22,7 @@
 #### 1.3.1 ขอบเขตความปลอดภัยของ v1 (Single-Player Local Sandbox)
 - **Trust Boundary:** ผู้เล่นรันเกมบนเครื่องของตนเอง (Client-side Execution) ภายในเบราว์เซอร์ โค้ด Python/JS ของผู้เล่นทำงานอยู่ใน Web Worker ประจำแท็บของผู้เล่นเอง
 - **In Scope (สิ่งที่มีการป้องกันใน v1):**
-  - บล็อกการเชื่อมต่อไปยังเน็ตเวิร์กจริงภายนอก (Worker Scope Lockdown ปลด `fetch`, `XMLHttpRequest`, `WebSocket`, `importScripts`, `sendBeacon` ให้เป็น `undefined`)
+  - ลดความเสี่ยงการเชื่อมต่อไปยังเน็ตเวิร์กจริงภายนอก (Worker Scope Lockdown ปลด `fetch`, `XMLHttpRequest`, `WebSocket`, `importScripts`, `sendBeacon` ให้เป็น `undefined` - ถอด API ตามรายการ ผลต่อเนื่องของ Gap 1 ยังไม่รับประกันการปิดทางออกเครือข่ายทั้งหมด จนกว่า CSP จะบังคับใช้)
   - ควบคุมการทำงานของโค้ดไม่ให้บล็อกเบราว์เซอร์หรือทรัพยากรเครื่อง (Watchdog Timer สั่ง terminate Worker เมื่อเกิด Infinite Loop หรือค้าง พร้อมกู้คืน State)
   - ป้องกันการหลอกผลตรวจของ Auto-Grader (ตรวจจาก Discrete Simulation Event Trace ภายใน Engine จริง ไม่เชื่อผลลัพธ์จากการ `print` stdout ลอย)
   - ลดพื้นผิวการโจมตี (Attack Surface Reduction) ปิดกั้นโมดูล FFI พื้นฐานและ Import Hook จากการเรียกทั่วไป

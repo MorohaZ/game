@@ -35,9 +35,17 @@ Real headless browser tests were executed against Google Chrome (Chromium) and M
 <!-- BROWSER_TEST_TABLE_START -->
 | Browser Engine | Browser Version | Binary Path | Worker Type | Tests Passed | Duration | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Google Chrome (Chromium)** | Google Chrome (Chromium) 154.0.8037.98 | `C:\Program Files\Google\Chrome\Application\chrome.exe` | ES Module Worker | **30 / 33** (+3 xfail) | - | **PASS** |
-| **Mozilla Firefox (Gecko)** | Mozilla Firefox 157.0.1 | `C:\Program Files\Mozilla Firefox\firefox.exe` | ES Module Worker | **30 / 33** (+3 xfail) | - | **PASS** |
+| **Google Chrome (Chromium)** | Google Chrome (Chromium) 154.0.8037.98 | `C:\Program Files\Google\Chrome\Application\chrome.exe` | ES Module Worker | **31 / 34** (+3 xfail) | 5441 ms | **PASS** |
+| **Mozilla Firefox (Gecko)** | Mozilla Firefox 157.0.1 | `C:\Program Files\Mozilla Firefox\firefox.exe` | ES Module Worker | **31 / 34** (+3 xfail) | 2810 ms | **PASS** |
 <!-- BROWSER_TEST_TABLE_END -->
+
+### 2.1 Minimum Browser Engine Versions Supporting `'wasm-unsafe-eval'`
+| Browser Engine | Minimum Version | Release Date | Notes |
+| :--- | :---: | :---: | :--- |
+| **Google Chrome / Chromium** | **95+** | Oct 2021 | Separates `'wasm-unsafe-eval'` from `'unsafe-eval'`, enabling Wasm without JS eval |
+| **Microsoft Edge (Chromium)** | **95+** | Oct 2021 | Same as Chromium 95+ |
+| **Mozilla Firefox (Gecko)** | **102+** | June 2022 | Supports `'wasm-unsafe-eval'` in standard and ESR channels |
+| **Apple Safari / WebKit** | **16.0+** | Sept 2022 | WebKit 614+ / iOS 16, macOS 13 |
 
 The full structured verification payload is recorded in [`browser-test-results.json`](./browser-test-results.json).
 
@@ -66,7 +74,7 @@ In alignment with the Single-Player Threat Model (v1), the following 3 behaviora
 
 1. **Bridge Facade Prototype / Constructor Traversal:**
    - **Behavioral Description:** Traversal from exposed JavaScript bridge methods across the FFI via object prototype and constructor references (e.g., reaching the host `Function` constructor) to execute arbitrary JavaScript within the Web Worker.
-   - **Status in v1:** Known Gap (tracked via xfail test). Mitigated in single-player scope by Worker scope lockdown (all network egress APIs removed from Worker). For multi-tenant / leaderboard modes (v2), separate realm isolation is required.
+   - **Status in v1:** Known Gap (tracked via xfail test). Mitigated in single-player scope by Worker scope lockdown (ถอด API ตามรายการ ผลต่อเนื่องของ Gap 1 ยังไม่รับประกันการปิดทางออกเครือข่ายทั้งหมด จนกว่า CSP จะบังคับใช้). For multi-tenant / leaderboard modes (v2), separate realm isolation is required.
 2. **Pyodide Runtime Event Loop & Asyncio JsProxy References:**
    - **Behavioral Description:** Pyodide runtime internals and module registries (such as event-loop scheduling callbacks `scheduleCallback` and loaded package registries `loadedPackages`) maintaining active `JsProxy` handles that can be accessed from Python to reach the host JavaScript environment.
    - **Status in v1:** Known Gap (tracked via xfail test).

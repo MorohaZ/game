@@ -9,8 +9,6 @@ public/pyodide/
 .browser-tmp-*/
 .firefox-tmp-*/
 
-# GitHub workflows (require workflow OAuth scope to push)
-.github/
 
 # Logs
 *.log

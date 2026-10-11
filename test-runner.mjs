@@ -1188,6 +1188,15 @@ function runXFailAssert(condition, name, gapDetail = '') {
 }
 
 async function runAllSuites() {
+  let initialGitCommit = 'unknown';
+  let initialGitDirty = false;
+  try {
+    const { execSync } = await import('child_process');
+    initialGitCommit = execSync('git rev-parse HEAD').toString().trim();
+    const statusOut = execSync('git status --porcelain').toString().trim();
+    initialGitDirty = statusOut.length > 0;
+  } catch {}
+
   logHeader('NETSEC: ZERO-DAY PROTOCOL - PHASE 0 SPIKE VERIFICATION');
   console.log('[DEBUG INSTALLED BROWSERS]:', findInstalledBrowsers());
 
@@ -2010,6 +2019,9 @@ json.dumps(res)
       try {
         const result = await runBrowserTest(target);
         const dur = (performance.now() - tStart).toFixed(0);
+        if (result.durationMs === undefined) {
+          result.durationMs = Number(dur);
+        }
         browserResults.push(result);
         if (result.success) {
           logPass(`Headless ${target.name} passed all ${result.passed}/${result.total} worker tests (${dur}ms)`);
@@ -2036,16 +2048,12 @@ json.dumps(res)
 
     if (browserResults.length > 0) {
       // Record test artifact: browser-test-results.json
-      let gitCommit = 'unknown';
-      try {
-        const { execSync } = await import('child_process');
-        gitCommit = execSync('git rev-parse HEAD').toString().trim();
-      } catch {}
-
       const artifactPath = new URL('./browser-test-results.json', import.meta.url);
+      const totalDuration = browserResults.reduce((acc, r) => acc + (r.durationMs || 0), 0);
       const artifactData = {
         timestamp: new Date().toISOString(),
-        commit: gitCommit,
+        commit: initialGitCommit,
+        dirty: initialGitDirty,
         pyodideVersion: '0.26.4',
         environment: {
           platform: process.platform,
@@ -2054,6 +2062,7 @@ json.dumps(res)
           staticHostingCompatible: true,
         },
         browsersTestedCount: browserResults.length,
+        durationMs: totalDuration,
         allPassed: browserResults.length > 0 && browserResults.every(r => r.success),
         browserResults: browserResults,
       };
