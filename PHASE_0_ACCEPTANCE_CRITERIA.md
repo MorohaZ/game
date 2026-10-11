@@ -43,10 +43,10 @@ Automated headless browser E2E test suite executes on every commit in GitHub Act
 <!-- BROWSER_TEST_TABLE_START -->
 > **Latest CI Run Reference:** [GitHub Actions CI Workflow](https://github.com/MorohaZ/game/actions/workflows/ci.yml) | Run Reference Pattern: `https://github.com/MorohaZ/game/actions/runs/<run_id>` | Commit: `585c7b8` | Timestamp: `2026-10-11T04:00:33.119Z`
 
-| Browser Engine | Target Engine | Environment / Platform | Worker Type | Tests Passed | Duration | Status |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Google Chrome (Chromium)** | Google Chrome (Chromium) 154.0.8037.98 | Playwright / Headless Binary | ES Module Worker | **35 / 38** (+3 xfail) | 5393 ms | **PASS** |
-| **Mozilla Firefox (Gecko)** | Mozilla Firefox 157.0.1 | Playwright / Headless Binary | ES Module Worker | **35 / 38** (+3 xfail) | 3269 ms | **PASS** |
+| Browser Engine | Target Engine | Environment / Platform | Worker Type | Tests Passed | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Google Chrome (Chromium)** | Google Chrome (Chromium) 154.0.8037.98 | Playwright / Headless Binary | ES Module Worker | **35 / 38** (+3 xfail) | **PASS** |
+| **Mozilla Firefox (Gecko)** | Mozilla Firefox 157.0.1 | Playwright / Headless Binary | ES Module Worker | **35 / 38** (+3 xfail) | **PASS** |
 <!-- BROWSER_TEST_TABLE_END -->
 
 ### 2.1 Minimum Browser Engine Versions Supporting `'wasm-unsafe-eval'`

@@ -9,6 +9,9 @@ public/pyodide/
 .browser-tmp-*/
 .firefox-tmp-*/
 
+# Test artifacts
+browser-test-results.json
+
 
 # Logs
 *.log

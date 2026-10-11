@@ -36,6 +36,9 @@ jobs:
       - name: Build project assets
         run: npm run build
 
+      - name: Verify generated config files match repository
+        run: git diff --exit-code -- _headers public/_headers netlify.toml vercel.json src/bridge/python-socket-shim.ts
+
       - name: Cache Playwright WebKit browser
         uses: actions/cache@v4
         with:

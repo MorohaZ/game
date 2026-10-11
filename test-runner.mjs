@@ -1212,10 +1212,19 @@ async function runAllSuites() {
   } catch {}
 
   logHeader('NETSEC: ZERO-DAY PROTOCOL - PHASE 0 SPIKE VERIFICATION');
-  console.log('[DEBUG INSTALLED BROWSERS]:', findInstalledBrowsers());
+  if (process.env.DEBUG === '1') {
+    console.log('[DEBUG INSTALLED BROWSERS]:', findInstalledBrowsers());
+  }
 
-  console.log(`${ANSI.bold}Suite 1: Deterministic Network Simulator Core${ANSI.reset}`);
-  const sim = new NetworkSimulatorCore();
+  const isUnitOnly = process.argv.includes('--unit-only');
+  const isBrowserOnly = process.argv.includes('--browser-only');
+  const isCI = process.env.CI === 'true' || process.env.CI === '1';
+
+  if (isBrowserOnly) {
+    logInfo('Suites 1–4 skipped: --browser-only requested.');
+  } else {
+    console.log(`${ANSI.bold}Suite 1: Deterministic Network Simulator Core${ANSI.reset}`);
+    const sim = new NetworkSimulatorCore();
   setupTestTopology(sim);
 
   // 1.1 Open Port Handshake
@@ -2003,6 +2012,7 @@ json.dumps(res)
   runAssert(totalEvents >= 10, `Simulation trace captured all packet events (${totalEvents} events recorded)`);
   const finalTick = sim.currentTick;
   runAssert(finalTick > 0, `Virtual clock advanced deterministically to tick #${finalTick}`);
+  }
 
   console.log(`\n${ANSI.bold}Suite 5: Headless Browser E2E Verification (Chrome & Firefox)${ANSI.reset}`);
   logInfo('Detecting installed browsers for headless WebAssembly + Worker verification...');
@@ -2023,10 +2033,6 @@ json.dumps(res)
 
   if (firefox) targetsToRun.push(firefox);
   if (webkit) targetsToRun.push(webkit);
-
-  const isUnitOnly = process.argv.includes('--unit-only');
-  const isBrowserOnly = process.argv.includes('--browser-only');
-  const isCI = process.env.CI === 'true' || process.env.CI === '1';
 
   const browserSummary = {
     chromium: { name: 'Chromium', ran: false, passed: 0, failed: 0, xfail: 0, total: 0, durationMs: 0 },
@@ -2143,12 +2149,16 @@ json.dumps(res)
   logHeader('TEST SUMMARY BREAKDOWN');
 
   console.log(`  ${ANSI.bold}[1. Unit Tests (Suites 1–4)]${ANSI.reset}`);
-  console.log(`    Total:          ${unitStats.total}`);
-  console.log(`    Passed:         ${ANSI.green}${unitStats.passed}${ANSI.reset}`);
-  if (unitStats.xfail > 0) {
-    console.log(`    Expected Gaps:  ${ANSI.yellow}${unitStats.xfail} (xfail)${ANSI.reset}`);
+  if (isBrowserOnly) {
+    console.log(`    Total:          ${ANSI.dim}Skipped (--browser-only requested)${ANSI.reset}\n`);
+  } else {
+    console.log(`    Total:          ${unitStats.total}`);
+    console.log(`    Passed:         ${ANSI.green}${unitStats.passed}${ANSI.reset}`);
+    if (unitStats.xfail > 0) {
+      console.log(`    Expected Gaps:  ${ANSI.yellow}${unitStats.xfail} (xfail)${ANSI.reset}`);
+    }
+    console.log(`    Failed:         ${unitStats.failed > 0 ? ANSI.red : ANSI.green}${unitStats.failed}${ANSI.reset}\n`);
   }
-  console.log(`    Failed:         ${unitStats.failed > 0 ? ANSI.red : ANSI.green}${unitStats.failed}${ANSI.reset}\n`);
 
   console.log(`  ${ANSI.bold}[2. In-Browser Tests (Suite 5)]${ANSI.reset}`);
   const formatBrowserLine = (label, data) => {

@@ -10,8 +10,8 @@ const mdPath = path.resolve(projectRoot, 'PHASE_0_ACCEPTANCE_CRITERIA.md');
 
 export function updateBrowserTable() {
   if (!fs.existsSync(jsonPath)) {
-    console.warn(`[generate-browser-table] Artifact ${jsonPath} not found.`);
-    return false;
+    console.log(`[generate-browser-table] Artifact ${jsonPath} not found. Gracefully skipping table update.`);
+    return true;
   }
 
   const data = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
@@ -23,8 +23,8 @@ export function updateBrowserTable() {
 
   rows.push(`> **Latest CI Run Reference:** [GitHub Actions CI Workflow](https://github.com/MorohaZ/game/actions/workflows/ci.yml) | Run Reference Pattern: \`https://github.com/MorohaZ/game/actions/runs/<run_id>\` | Commit: \`${commitHash}\` | Timestamp: \`${timestamp}\``);
   rows.push('');
-  rows.push('| Browser Engine | Target Engine | Environment / Platform | Worker Type | Tests Passed | Duration | Status |');
-  rows.push('| :--- | :--- | :--- | :--- | :--- | :--- | :--- |');
+  rows.push('| Browser Engine | Target Engine | Environment / Platform | Worker Type | Tests Passed | Status |');
+  rows.push('| :--- | :--- | :--- | :--- | :--- | :--- |');
 
   for (const b of data.browserResults || []) {
     const version = b.browserVersion || 'Detected';
@@ -32,7 +32,6 @@ export function updateBrowserTable() {
     const passed = b.passed || 0;
     const xfail = b.xfail || 0;
     const status = b.success ? '**PASS**' : '**FAIL**';
-    const dur = b.durationMs ? `${b.durationMs} ms` : '-';
     const passRate = total > 0 ? `${passed} / ${total}` : 'N/A';
     const xfailInfo = xfail > 0 ? ` (+${xfail} xfail)` : '';
     const platform = b.browserPath && b.browserPath.includes('ms-playwright')
@@ -40,7 +39,7 @@ export function updateBrowserTable() {
       : (data.environment?.isCI ? 'Ubuntu 24.04 (GitHub Actions)' : 'Playwright / Headless Binary');
 
     rows.push(
-      `| **${b.browser}** | ${version} | ${platform} | ES Module Worker | **${passRate}**${xfailInfo} | ${dur} | ${status} |`
+      `| **${b.browser}** | ${version} | ${platform} | ES Module Worker | **${passRate}**${xfailInfo} | ${status} |`
     );
   }
 
