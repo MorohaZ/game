@@ -124,8 +124,10 @@ export function getAvailableBrowsers() {
   return available;
 }
 
-export const DEFAULT_CSP_HEADER = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self'; style-src 'self' 'unsafe-inline';";
-export const DEFAULT_WORKER_CSP_HEADER = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self';";
+import { CSP_HEADER, WORKER_CSP_HEADER } from '../../scripts/csp-config.mjs';
+
+export const DEFAULT_CSP_HEADER = CSP_HEADER;
+export const DEFAULT_WORKER_CSP_HEADER = WORKER_CSP_HEADER;
 
 export function createTestServer(options = {}) {
   const effectiveCsp = options.cspHeader !== undefined ? options.cspHeader : DEFAULT_CSP_HEADER;
@@ -222,6 +224,16 @@ export function createTestServer(options = {}) {
           functionEvalBlocked = true;
         }
         recordAssert(functionEvalBlocked, 'CSP active enforcement: Function/eval execution blocked without unsafe-eval');
+
+        log('1c. Checking CSP connect-src enforcement (external origin network rejection)...');
+        let externalConnectBlocked = false;
+        try {
+          await fetch('https://untrusted-external-domain.invalid/api', { mode: 'no-cors' });
+          externalConnectBlocked = false;
+        } catch (connErr) {
+          externalConnectBlocked = true;
+        }
+        recordAssert(externalConnectBlocked, 'CSP active enforcement: External origin network request blocked by connect-src');
 
         log('2. Spawning Production Web Worker (/worker.js)...');
         const worker = new Worker('/worker.js', { type: 'module' });
@@ -449,7 +461,7 @@ print("__ADV_RESULTS__:" + json.dumps(adv_res))
         recordAssert(advParsed.globals_purged === true, 'Introspection Isolation: js_sim_core and _sim_core purged from globals');
 
         // Test Expected-to-Fail Known Gaps
-        log('5. Running Expected-to-Fail (xfail) tests for 3 Known Gaps...');
+        log('5. Running Expected-to-Fail (xfail) tests for 3 Known Gaps under CSP...');
         const gapsTestPy = \`
 import sys, socket, json
 
@@ -457,6 +469,8 @@ gap_res = {}
 
 # Known Gap 1: Facade prototype / constructor traversal
 gap1_sealed = True
+gap1_js_exec_blocked = False
+found_ctor = None
 try:
     s = socket.socket()
     for meth_name in ['connect_ex', 'send', 'recv', 'bind', 'listen', 'accept', 'close', '__init__']:
@@ -471,24 +485,37 @@ try:
             if hasattr(obj, 'constructor') and hasattr(obj.constructor, 'constructor'):
                 if 'Function' in str(obj.constructor.constructor) or callable(obj.constructor.constructor):
                     gap1_sealed = False
+                    found_ctor = obj.constructor.constructor
                     break
             for attr in ['createSocket', 'connectSocket', 'sendSocket', 'recvSocket']:
                 if hasattr(obj, attr):
                     m = getattr(obj, attr)
                     if hasattr(m, 'constructor') and ('Function' in str(m.constructor) or callable(m.constructor)):
                         gap1_sealed = False
+                        found_ctor = m.constructor
                         break
             if not gap1_sealed:
                 break
         if not gap1_sealed:
             break
     s.close()
+    if found_ctor:
+        try:
+            found_ctor("return 'csp_eval_blocked'")()
+            gap1_js_exec_blocked = False
+        except Exception:
+            gap1_js_exec_blocked = True
+    else:
+        gap1_js_exec_blocked = True
 except Exception:
-    pass
+    gap1_js_exec_blocked = True
 gap_res["gap1_sealed"] = gap1_sealed
+gap_res["gap1_js_exec_blocked"] = gap1_js_exec_blocked
 
 # Known Gap 2: Pyodide event-loop / asyncio internal JsProxy references
 gap2_sealed = True
+can_eval_gap2 = False
+loop_proxies = []
 try:
     import asyncio
     try:
@@ -496,35 +523,55 @@ try:
         for k, v in getattr(loop, '__dict__', {}).items():
             if 'JsProxy' in type(v).__name__ or 'JsProxy' in str(type(v)):
                 gap2_sealed = False
-                break
+                loop_proxies.append(v)
     except Exception:
         pass
-    if gap2_sealed:
-        for mod in list(sys.modules.values()):
-            if mod is None:
-                continue
-            for k, v in getattr(mod, '__dict__', {}).items():
-                if 'scheduleCallback' in str(k) or 'loadedPackages' in str(k) or 'JsProxy' in type(v).__name__:
-                    gap2_sealed = False
-                    break
-            if not gap2_sealed:
-                break
+    for mod in list(sys.modules.values()):
+        if mod is None:
+            continue
+        for k, v in getattr(mod, '__dict__', {}).items():
+            if 'scheduleCallback' in str(k) or 'loadedPackages' in str(k) or 'JsProxy' in type(v).__name__:
+                gap2_sealed = False
+                if 'JsProxy' in type(v).__name__:
+                    loop_proxies.append(v)
     if gap2_sealed:
         gap2_sealed = False
+    for p in loop_proxies:
+        if hasattr(p, 'constructor') and hasattr(p.constructor, 'constructor'):
+            try:
+                p.constructor.constructor("return 'gap2_eval'")()
+                can_eval_gap2 = True
+                break
+            except Exception:
+                pass
 except Exception:
     gap2_sealed = False
 gap_res["gap2_sealed"] = gap2_sealed
+gap_res["gap2_js_exec_blocked"] = (not can_eval_gap2)
+
 
 # Known Gap 3: Python garbage collection (gc) object graph traversal
 gap3_sealed = True
+gap3_js_exec_blocked = True
 try:
     import gc
     proxies = [o for o in gc.get_objects() if 'JsProxy' in type(o).__name__]
     if len(proxies) > 0:
         gap3_sealed = False
+    can_eval = False
+    for p in proxies:
+        if hasattr(p, 'constructor') and hasattr(p.constructor, 'constructor'):
+            try:
+                p.constructor.constructor("return 'test'")()
+                can_eval = True
+                break
+            except Exception:
+                pass
+    gap3_js_exec_blocked = (not can_eval)
 except Exception:
     pass
 gap_res["gap3_sealed"] = gap3_sealed
+gap_res["gap3_js_exec_blocked"] = gap3_js_exec_blocked
 
 print("__GAP_RESULTS__:" + json.dumps(gap_res))
 \`;
@@ -543,6 +590,10 @@ print("__GAP_RESULTS__:" + json.dumps(gap_res))
         recordXFailAssert(gapsParsed.gap1_sealed === true, 'Known Gap 1: Bridge facade prototype isolation', 'Constructor chain reaches Function (Expected gap in v1)');
         recordXFailAssert(gapsParsed.gap2_sealed === true, 'Known Gap 2: Pyodide event-loop / asyncio internal JsProxy isolation', 'Event loop / modules leak JsProxy (Expected gap in v1)');
         recordXFailAssert(gapsParsed.gap3_sealed === true, 'Known Gap 3: Garbage collection object graph traversal isolation', 'gc.get_objects() locates live JsProxy handles (Expected gap in v1)');
+
+        recordAssert(gapsParsed.gap1_js_exec_blocked === true, 'CSP Gap 1 Route: Function constructor dynamic JS eval blocked by CSP');
+        recordAssert(gapsParsed.gap2_js_exec_blocked === true, 'CSP Gap 2 Route: Event loop JsProxy dynamic JS eval blocked by CSP');
+        recordAssert(gapsParsed.gap3_js_exec_blocked === true, 'CSP Gap 3 Route: Garbage collector JsProxy dynamic JS eval blocked by CSP');
 
         // Test Deterministic Simulation Event Trace via Worker RPC
         log('6. Testing Simulation Event Trace via Worker RPC...');

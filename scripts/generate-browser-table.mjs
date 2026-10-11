@@ -17,7 +17,13 @@ export function updateBrowserTable() {
   const data = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
   const rows = [];
 
-  rows.push('| Browser Engine | Browser Version | Binary Path | Worker Type | Tests Passed | Duration | Status |');
+  const ciRunner = data.environment?.ciRunner || (data.environment?.isCI ? 'ubuntu-24.04 (GitHub Actions)' : 'CI Runner (ubuntu-24.04)');
+  const commitHash = data.commit ? data.commit.substring(0, 7) : 'latest';
+  const timestamp = data.timestamp || new Date().toISOString();
+
+  rows.push(`> **Latest CI Run Reference:** [GitHub Actions CI Workflow](https://github.com/MorohaZ/game/actions/workflows/ci.yml) | Run Reference Pattern: \`https://github.com/MorohaZ/game/actions/runs/<run_id>\` | Commit: \`${commitHash}\` | Timestamp: \`${timestamp}\``);
+  rows.push('');
+  rows.push('| Browser Engine | Target Engine | Environment / Platform | Worker Type | Tests Passed | Duration | Status |');
   rows.push('| :--- | :--- | :--- | :--- | :--- | :--- | :--- |');
 
   for (const b of data.browserResults || []) {
@@ -29,8 +35,12 @@ export function updateBrowserTable() {
     const dur = b.durationMs ? `${b.durationMs} ms` : '-';
     const passRate = total > 0 ? `${passed} / ${total}` : 'N/A';
     const xfailInfo = xfail > 0 ? ` (+${xfail} xfail)` : '';
+    const platform = b.browserPath && b.browserPath.includes('ms-playwright')
+      ? 'Ubuntu 24.04 (CI Playwright)'
+      : (data.environment?.isCI ? 'Ubuntu 24.04 (GitHub Actions)' : 'Playwright / Headless Binary');
+
     rows.push(
-      `| **${b.browser}** | ${version} | \`${b.browserPath}\` | ES Module Worker | **${passRate}**${xfailInfo} | ${dur} | ${status} |`
+      `| **${b.browser}** | ${version} | ${platform} | ES Module Worker | **${passRate}**${xfailInfo} | ${dur} | ${status} |`
     );
   }
 

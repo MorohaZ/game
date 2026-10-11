@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { CSP_HEADER, X_CONTENT_TYPE_OPTIONS } from './src/security/csp-config';
 
 export default defineConfig({
   worker: {
@@ -7,15 +8,15 @@ export default defineConfig({
   server: {
     port: 3000,
     headers: {
-      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self'; style-src 'self' 'unsafe-inline';",
-      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': CSP_HEADER,
+      'X-Content-Type-Options': X_CONTENT_TYPE_OPTIONS,
     },
   },
   preview: {
     port: 4173,
     headers: {
-      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self'; style-src 'self' 'unsafe-inline';",
-      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': CSP_HEADER,
+      'X-Content-Type-Options': X_CONTENT_TYPE_OPTIONS,
     },
   },
   build: {

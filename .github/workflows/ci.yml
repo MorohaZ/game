@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       CI: 'true'
     steps:
@@ -38,3 +38,11 @@ jobs:
 
       - name: Run Headless Browser E2E suite
         run: npm run test:browser
+
+      - name: Upload browser test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-test-results
+          path: browser-test-results.json
+          if-no-files-found: warn

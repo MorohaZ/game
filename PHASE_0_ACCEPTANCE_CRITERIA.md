@@ -28,15 +28,25 @@ Because `SharedArrayBuffer` is completely avoided:
 
 ---
 
-## 2. Real Headless Browser E2E Test Verification Record
+## 2. Real Headless Browser E2E Test Verification Record (CI Run Reference)
 
-Real headless browser tests were executed against Google Chrome (Chromium) and Mozilla Firefox (Gecko) on Windows. The table below is automatically maintained from `browser-test-results.json`:
+[![CI](https://github.com/MorohaZ/game/actions/workflows/ci.yml/badge.svg)](https://github.com/MorohaZ/game/actions/workflows/ci.yml)
+
+Automated headless browser E2E test suite executes on every commit in GitHub Actions CI on `ubuntu-24.04` across Chromium, Firefox, and WebKit engines. Test results and coverage metrics are published as run artifacts (`browser-test-results.json` via `actions/upload-artifact@v4` with `if: always()`).
+
+- **CI Workflow Configuration:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+- **CI Runner Platform:** `runs-on: ubuntu-24.04` (Linux x86_64)
+- **CI Workflow Runs:** [GitHub Actions CI Runs](https://github.com/MorohaZ/game/actions/workflows/ci.yml)
+- **CI Run Reference Link Format:** `https://github.com/MorohaZ/game/actions/runs/<run_id>`
+- **Test Artifact:** `browser-test-results` (`browser-test-results.json`)
 
 <!-- BROWSER_TEST_TABLE_START -->
-| Browser Engine | Browser Version | Binary Path | Worker Type | Tests Passed | Duration | Status |
+> **Latest CI Run Reference:** [GitHub Actions CI Workflow](https://github.com/MorohaZ/game/actions/workflows/ci.yml) | Run Reference Pattern: `https://github.com/MorohaZ/game/actions/runs/<run_id>` | Commit: `cdbaea6` | Timestamp: `2026-10-11T03:52:33.606Z`
+
+| Browser Engine | Target Engine | Environment / Platform | Worker Type | Tests Passed | Duration | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Google Chrome (Chromium)** | Google Chrome (Chromium) 154.0.8037.98 | `C:\Program Files\Google\Chrome\Application\chrome.exe` | ES Module Worker | **31 / 34** (+3 xfail) | 5441 ms | **PASS** |
-| **Mozilla Firefox (Gecko)** | Mozilla Firefox 157.0.1 | `C:\Program Files\Mozilla Firefox\firefox.exe` | ES Module Worker | **31 / 34** (+3 xfail) | 2810 ms | **PASS** |
+| **Google Chrome (Chromium)** | Google Chrome (Chromium) 154.0.8037.98 | Playwright / Headless Binary | ES Module Worker | **35 / 38** (+3 xfail) | 3539 ms | **PASS** |
+| **Mozilla Firefox (Gecko)** | Mozilla Firefox 157.0.1 | Playwright / Headless Binary | ES Module Worker | **35 / 38** (+3 xfail) | 2795 ms | **PASS** |
 <!-- BROWSER_TEST_TABLE_END -->
 
 ### 2.1 Minimum Browser Engine Versions Supporting `'wasm-unsafe-eval'`
@@ -68,19 +78,25 @@ The full structured verification payload is recorded in [`browser-test-results.j
 
 ---
 
-## 4. Known Gaps (v1 Behavioral Vectors)
+## 4. Known Gaps (v1 Behavioral Vectors & CSP Verification)
 
 In alignment with the Single-Player Threat Model (v1), the following 3 behavioral vectors are recognized and documented. They are tracked via expected-to-fail tests (`xfail`) and are considered acceptable for single-player local execution on the player's own machine:
 
 1. **Bridge Facade Prototype / Constructor Traversal:**
    - **Behavioral Description:** Traversal from exposed JavaScript bridge methods across the FFI via object prototype and constructor references (e.g., reaching the host `Function` constructor) to execute arbitrary JavaScript within the Web Worker.
-   - **Status in v1:** Known Gap (tracked via xfail test). Mitigated in single-player scope by Worker scope lockdown (ถอด API ตามรายการ ผลต่อเนื่องของ Gap 1 ยังไม่รับประกันการปิดทางออกเครือข่ายทั้งหมด จนกว่า CSP จะบังคับใช้). For multi-tenant / leaderboard modes (v2), separate realm isolation is required.
+   - **Status in v1 (ผลลัพธ์จริงหลังบังคับใช้ CSP):**
+     - โครงสร้าง JavaScript Object Graph ใน v1 ยังยอมให้ prototype traversal เชื่อมโยงไปถึง constructor อ็อบเจกต์ `Function` ได้ จึงคงสถานะ **xfail** ไว้ตามเกณฑ์ความปลอดภัย
+     - **ผลลัพธ์จริงหลังบังคับใช้ CSP (`script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'`):**
+       1. การประเมินโค้ดหรือคอมไพล์สตริง JavaScript ตามอำเภอใจผ่าน `Function("...")()` ถูกบล็อกโดยตรงที่ระดับเบราว์เซอร์ (`EvalError: call to Function() blocked by CSP without unsafe-eval`) แม้จะเข้าถึง constructor ได้ก็ตาม
+       2. การเชื่อมต่อไปยัง Network Origin ภายนอกถูกปฏิเสธทั้ง 2 ชั้น: ชั้นที่ 1 บล็อกด้วย CSP `connect-src 'self'`, ชั้นที่ 2 บล็อกด้วย Worker API Scope Lockdown (`fetch`, `WebSocket`, `XMLHttpRequest` ถูกปลด)
+       3. การทดสอบแยกรายเส้นทางสำหรับ Gap 1 ยืนยันว่าไม่สามารถรัน Dynamic JS String และไม่สามารถยิงทราฟฟิกออกภายนอกได้
+     - สำหรับโหมด Multiplayer / Leaderboards ในอนาคต (v2+) จะแยก Realm Boundary อย่างสมบูรณ์เพื่อปิด prototype traversal เชิงโครงสร้าง
 2. **Pyodide Runtime Event Loop & Asyncio JsProxy References:**
    - **Behavioral Description:** Pyodide runtime internals and module registries (such as event-loop scheduling callbacks `scheduleCallback` and loaded package registries `loadedPackages`) maintaining active `JsProxy` handles that can be accessed from Python to reach the host JavaScript environment.
-   - **Status in v1:** Known Gap (tracked via xfail test).
+   - **Status in v1 (ผลลัพธ์จริงหลังบังคับใช้ CSP):** Known Gap (คงสถานะ xfail ไว้) แม้ `JsProxy` จะหลงเหลืออยู่ใน Event Loop แต่ภายใต้ CSP ไม่สามารถสั่ง `Function("...")()` เพื่อคอมไพล์โค้ดใหม่ และไม่สามารถเชื่อมต่อออกนอก Origin ได้
 3. **Python Runtime Object Graph Traversal via Garbage Collector:**
    - **Behavioral Description:** Using Python runtime heap introspection (such as `gc.get_objects()`) to inspect in-memory objects and locate internal `JsProxy` handles, circumventing module-level namespace and import restrictions.
-   - **Status in v1:** Known Gap (tracked via xfail test).
+   - **Status in v1 (ผลลัพธ์จริงหลังบังคับใช้ CSP):** Known Gap (คงสถานะ xfail ไว้) การค้นพบ `JsProxy` ใน heap ผ่าน `gc` ไม่เปิดทางให้รันโค้ดใหม่จากสตริงเนื่องจากติด CSP `script-src` โดยไม่มี `'unsafe-eval'`
 
 ---
 

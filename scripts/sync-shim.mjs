@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { syncHostingConfigs } from './csp-config.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,3 +25,7 @@ export const PYTHON_SOCKET_SHIM_CODE = ${JSON.stringify(pyCode)};
 
 fs.writeFileSync(tsPath, tsContent, 'utf-8');
 console.log(`[sync-shim] Successfully synced ${pyPath} -> ${tsPath}`);
+
+syncHostingConfigs(projectRoot);
+console.log(`[sync-shim] Successfully synced CSP headers to _headers, public/_headers, netlify.toml, and vercel.json`);
+

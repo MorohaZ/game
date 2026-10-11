@@ -197,11 +197,13 @@ function runPythonUnderCSP(cspHeader, workerCspHeader) {
   });
 }
 
+import { CSP_HEADER, WORKER_CSP_HEADER } from './csp-config.mjs';
+
 async function main() {
   console.log('Testing full Python socket execution under CSP WITHOUT unsafe-eval...');
   const res = await runPythonUnderCSP(
-    "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self';",
-    "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self';"
+    CSP_HEADER,
+    WORKER_CSP_HEADER
   );
   console.log('Execution Result:', JSON.stringify(res, null, 2));
 }

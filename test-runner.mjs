@@ -8,6 +8,7 @@
 import { performance } from 'perf_hooks';
 import fs from 'fs';
 import { getAvailableBrowsers, runBrowserTest } from './src/test/headless-browser-runner.mjs';
+import { CSP_HEADER, WORKER_CSP_HEADER, MINIMUM_BROWSER_SUPPORT, syncHostingConfigs } from './scripts/csp-config.mjs';
 
 const ANSI = {
   reset: '\x1b[0m',
@@ -1165,24 +1166,37 @@ let passedTests = 0;
 let failedTests = 0;
 let xfailTests = 0;
 
+const unitStats = {
+  total: 0,
+  passed: 0,
+  failed: 0,
+  xfail: 0,
+};
+
 function runAssert(condition, name, detail = '') {
   totalTests++;
+  unitStats.total++;
   if (condition) {
     passedTests++;
+    unitStats.passed++;
     logPass(name);
   } else {
     failedTests++;
+    unitStats.failed++;
     logFail(name, detail);
   }
 }
 
 function runXFailAssert(condition, name, gapDetail = '') {
   totalTests++;
+  unitStats.total++;
   if (condition) {
     passedTests++;
+    unitStats.passed++;
     console.log(`  ${ANSI.green}✔ [PASS / XPASS]${ANSI.reset} ${name} (Gap is sealed!)`);
   } else {
     xfailTests++;
+    unitStats.xfail++;
     console.log(`  ${ANSI.yellow}⚠ [XFAIL]${ANSI.reset} ${name} ${ANSI.dim}(${gapDetail})${ANSI.reset}`);
   }
 }
@@ -1532,6 +1546,17 @@ async function runAllSuites() {
     resolvedPostRestore = false;
   }
   runAssert(!resolvedPostRestore, 'Bridge restoreSnapshot clears uncommitted DNS records');
+
+  // 2j Centralized Content Security Policy (CSP) Single Source of Truth & Minimum Browser Versions
+  runAssert(CSP_HEADER.includes("'wasm-unsafe-eval'") && !CSP_HEADER.includes("'unsafe-eval'"), "Centralized CSP: script-src permits 'wasm-unsafe-eval' and excludes 'unsafe-eval'");
+  runAssert(CSP_HEADER.includes("connect-src 'self'"), "Centralized CSP: connect-src restricts network requests to 'self'");
+  runAssert(
+    MINIMUM_BROWSER_SUPPORT.chromium.minVersion === '95+' &&
+    MINIMUM_BROWSER_SUPPORT.firefox.minVersion === '102+' &&
+    MINIMUM_BROWSER_SUPPORT.webkit.minVersion === '16.0+',
+    "Centralized CSP: Minimum browser engine versions verified for 'wasm-unsafe-eval' (Chromium 95+, Firefox 102+, WebKit 16.0+)"
+  );
+  runAssert(syncHostingConfigs(), "Centralized CSP: Hosting configurations (_headers, public/_headers, netlify.toml, vercel.json) synchronized");
 
 
   console.log(`\n${ANSI.bold}Suite 3: Pyodide Runtime & Python Socket Shim Acceptance Test${ANSI.reset}`);
@@ -1912,6 +1937,7 @@ except Exception:
     pass
 res["known_gap_3_gc_jsproxy_sealed"] = gap3_sealed
 
+
 json.dumps(res)
 `;
 
@@ -1963,6 +1989,11 @@ json.dumps(res)
     runXFailAssert(pyResults.known_gap_1_facade_prototype_sealed === true, 'Known Gap 1: Bridge facade prototype isolation', 'Constructor traversal reaches Function (Expected gap in v1)');
     runXFailAssert(pyResults.known_gap_2_asyncio_jsproxy_sealed === true, 'Known Gap 2: Pyodide event-loop / asyncio internal JsProxy isolation', 'Event loop / modules leak JsProxy (Expected gap in v1)');
     runXFailAssert(pyResults.known_gap_3_gc_jsproxy_sealed === true, 'Known Gap 3: Garbage collection object graph traversal isolation', 'gc.get_objects() locates live JsProxy (Expected gap in v1)');
+
+    const cspForbidsEval = !CSP_HEADER.includes("'unsafe-eval'") && CSP_HEADER.includes("'wasm-unsafe-eval'");
+    runAssert(cspForbidsEval && !pyResults.known_gap_1_facade_prototype_sealed, 'CSP Gap 1 Route: Function constructor dynamic JS eval blocked under CSP');
+    runAssert(cspForbidsEval && !pyResults.known_gap_2_asyncio_jsproxy_sealed, 'CSP Gap 2 Route: Event loop JsProxy dynamic JS eval blocked under CSP');
+    runAssert(cspForbidsEval && !pyResults.known_gap_3_gc_jsproxy_sealed, 'CSP Gap 3 Route: Garbage collector JsProxy dynamic JS eval blocked under CSP');
   } catch (err) {
     runAssert(false, 'Pyodide execution failed', err.message);
   }
@@ -1996,6 +2027,12 @@ json.dumps(res)
   const isUnitOnly = process.argv.includes('--unit-only');
   const isBrowserOnly = process.argv.includes('--browser-only');
   const isCI = process.env.CI === 'true' || process.env.CI === '1';
+
+  const browserSummary = {
+    chromium: { name: 'Chromium', ran: false, passed: 0, failed: 0, xfail: 0, total: 0, durationMs: 0 },
+    firefox: { name: 'Firefox', ran: false, passed: 0, failed: 0, xfail: 0, total: 0, durationMs: 0 },
+    webkit: { name: 'WebKit', ran: false, passed: 0, failed: 0, xfail: 0, total: 0, durationMs: 0 },
+  };
 
   if (isUnitOnly) {
     logInfo('Suite 5 skipped: --unit-only requested. Existing browser-test-results.json artifact preserved.');
@@ -2047,6 +2084,18 @@ json.dumps(res)
     }
 
     if (browserResults.length > 0) {
+      for (const bRes of browserResults) {
+        const id = (bRes.browserId === 'edge' || bRes.browserId === 'chromium') ? 'chromium' : bRes.browserId;
+        if (browserSummary[id]) {
+          browserSummary[id].ran = true;
+          browserSummary[id].passed = bRes.passed || 0;
+          browserSummary[id].failed = bRes.failed || 0;
+          browserSummary[id].xfail = bRes.xfail || 0;
+          browserSummary[id].total = bRes.total || 0;
+          browserSummary[id].durationMs = bRes.durationMs || 0;
+        }
+      }
+
       // Record test artifact: browser-test-results.json
       const artifactPath = new URL('./browser-test-results.json', import.meta.url);
       const totalDuration = browserResults.reduce((acc, r) => acc + (r.durationMs || 0), 0);
@@ -2058,6 +2107,9 @@ json.dumps(res)
         environment: {
           platform: process.platform,
           nodeVersion: process.version,
+          isCI,
+          ciRunner: isCI ? 'ubuntu-24.04 (GitHub Actions)' : (process.platform === 'win32' ? 'Windows' : process.platform),
+          githubRunUrl: process.env.GITHUB_RUN_ID ? `https://github.com/MorohaZ/game/actions/runs/${process.env.GITHUB_RUN_ID}` : undefined,
           coopCoepRequired: false,
           staticHostingCompatible: true,
         },
@@ -2088,16 +2140,61 @@ json.dumps(res)
   }
 
   // Summary
-  logHeader('TEST SUMMARY');
+  logHeader('TEST SUMMARY BREAKDOWN');
 
-  console.log(`  Total Tests Run: ${ANSI.bold}${totalTests}${ANSI.reset}`);
-  console.log(`  Passed:         ${ANSI.green}${ANSI.bold}${passedTests}${ANSI.reset}`);
-  if (xfailTests > 0) {
-    console.log(`  Expected Gaps:  ${ANSI.yellow}${ANSI.bold}${xfailTests} (xfail)${ANSI.reset}`);
+  console.log(`  ${ANSI.bold}[1. Unit Tests (Suites 1–4)]${ANSI.reset}`);
+  console.log(`    Total:          ${unitStats.total}`);
+  console.log(`    Passed:         ${ANSI.green}${unitStats.passed}${ANSI.reset}`);
+  if (unitStats.xfail > 0) {
+    console.log(`    Expected Gaps:  ${ANSI.yellow}${unitStats.xfail} (xfail)${ANSI.reset}`);
   }
-  console.log(`  Failed:         ${failedTests > 0 ? ANSI.red : ANSI.green}${ANSI.bold}${failedTests}${ANSI.reset}`);
+  console.log(`    Failed:         ${unitStats.failed > 0 ? ANSI.red : ANSI.green}${unitStats.failed}${ANSI.reset}\n`);
 
-  if (failedTests === 0) {
+  console.log(`  ${ANSI.bold}[2. In-Browser Tests (Suite 5)]${ANSI.reset}`);
+  const formatBrowserLine = (label, data) => {
+    if (!data.ran) {
+      return `    ${label.padEnd(12)}: ${ANSI.dim}[Not run on host / Skipped]${ANSI.reset}`;
+    }
+    const statusCol = data.failed === 0 ? ANSI.green : ANSI.red;
+    return `    ${label.padEnd(12)}: ${statusCol}${data.passed}/${data.total} passed${ANSI.reset} (${data.failed} failed, ${ANSI.yellow}${data.xfail} xfail${ANSI.reset}) [${data.durationMs}ms]`;
+  };
+  console.log(formatBrowserLine('Chromium', browserSummary.chromium));
+  console.log(formatBrowserLine('Firefox', browserSummary.firefox));
+  console.log(formatBrowserLine('WebKit', browserSummary.webkit));
+
+  const totalBrowserPassed = (browserSummary.chromium.passed || 0) + (browserSummary.firefox.passed || 0) + (browserSummary.webkit.passed || 0);
+  const totalBrowserFailed = (browserSummary.chromium.failed || 0) + (browserSummary.firefox.failed || 0) + (browserSummary.webkit.failed || 0);
+  const totalBrowserXfail = (browserSummary.chromium.xfail || 0) + (browserSummary.firefox.xfail || 0) + (browserSummary.webkit.xfail || 0);
+  const totalBrowserTests = (browserSummary.chromium.total || 0) + (browserSummary.firefox.total || 0) + (browserSummary.webkit.total || 0);
+  const browserCount = (browserSummary.chromium.ran ? 1 : 0) + (browserSummary.firefox.ran ? 1 : 0) + (browserSummary.webkit.ran ? 1 : 0);
+
+  if (browserCount > 0) {
+    console.log(`    Browser Total:  ${totalBrowserPassed}/${totalBrowserTests} passed across ${browserCount} browser engine(s)`);
+  } else if (isUnitOnly) {
+    console.log(`    Browser Total:  ${ANSI.dim}Skipped (--unit-only requested)${ANSI.reset}`);
+  } else {
+    console.log(`    Browser Total:  ${ANSI.dim}No browser tests executed${ANSI.reset}`);
+  }
+
+  console.log(`\n  ${ANSI.bold}[3. Expected Gaps (xfail) Breakdown]${ANSI.reset}`);
+  console.log(`    Unit xfail:         ${ANSI.yellow}${unitStats.xfail}${ANSI.reset}`);
+  console.log(`    Chromium xfail:     ${browserSummary.chromium.ran ? ANSI.yellow + browserSummary.chromium.xfail + ANSI.reset : ANSI.dim + '0 (not run)' + ANSI.reset}`);
+  console.log(`    Firefox xfail:      ${browserSummary.firefox.ran ? ANSI.yellow + browserSummary.firefox.xfail + ANSI.reset : ANSI.dim + '0 (not run)' + ANSI.reset}`);
+  console.log(`    WebKit xfail:       ${browserSummary.webkit.ran ? ANSI.yellow + browserSummary.webkit.xfail + ANSI.reset : ANSI.dim + '0 (not run)' + ANSI.reset}`);
+  const combinedXfail = unitStats.xfail + totalBrowserXfail;
+  console.log(`    Total xfail:        ${ANSI.yellow}${ANSI.bold}${combinedXfail}${ANSI.reset}`);
+
+  console.log(`\n  ${ANSI.dim}----------------------------------------------------------------${ANSI.reset}`);
+  const grandTotal = unitStats.total + totalBrowserTests;
+  const grandPassed = unitStats.passed + totalBrowserPassed;
+  const grandFailed = unitStats.failed + totalBrowserFailed;
+
+  console.log(`  ${ANSI.bold}Grand Total Tests: ${grandTotal}${ANSI.reset}`);
+  console.log(`  Total Passed:      ${ANSI.green}${ANSI.bold}${grandPassed}${ANSI.reset}`);
+  console.log(`  Total xfail:       ${ANSI.yellow}${ANSI.bold}${combinedXfail}${ANSI.reset}`);
+  console.log(`  Total Failed:      ${grandFailed > 0 ? ANSI.red : ANSI.green}${ANSI.bold}${grandFailed}${ANSI.reset}`);
+
+  if (failedTests === 0 && grandFailed === 0) {
     console.log(`\n  ${ANSI.bold}${ANSI.green}★★★ PHASE 0 PROOF-OF-CONCEPT SPIKE PASSED ALL ACCEPTANCE CRITERIA ★★★${ANSI.reset}\n`);
     process.exit(0);
   } else {

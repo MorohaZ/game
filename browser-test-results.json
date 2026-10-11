@@ -1,16 +1,18 @@
 {
-  "timestamp": "2026-10-11T02:51:36.213Z",
-  "commit": "1d841e59ffe89b5601d59113b0008e2c32cc2719",
+  "timestamp": "2026-10-11T03:52:33.606Z",
+  "commit": "cdbaea6acc6c2c10aa6f3c129d2d851116fbc302",
   "dirty": true,
   "pyodideVersion": "0.26.4",
   "environment": {
     "platform": "win32",
     "nodeVersion": "v22.16.0",
+    "isCI": false,
+    "ciRunner": "Windows",
     "coopCoepRequired": false,
     "staticHostingCompatible": true
   },
   "browsersTestedCount": 2,
-  "durationMs": 8251,
+  "durationMs": 6334,
   "allPassed": true,
   "browserResults": [
     {
@@ -18,10 +20,10 @@
       "browserId": "chromium",
       "browserVersion": "Google Chrome (Chromium) 154.0.8037.98",
       "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-      "durationMs": 5441,
+      "durationMs": 3539,
       "success": true,
-      "total": 34,
-      "passed": 31,
+      "total": 38,
+      "passed": 35,
       "failed": 0,
       "xfail": 3,
       "results": [
@@ -34,7 +36,11 @@
           "pass": true
         },
         {
-          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 3277.7ms",
+          "name": "CSP active enforcement: External origin network request blocked by connect-src",
+          "pass": true
+        },
+        {
+          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 1381.7ms",
           "pass": true
         },
         {
@@ -154,6 +160,18 @@
           "pass": false,
           "xfail": true,
           "detail": "gc.get_objects() locates live JsProxy handles (Expected gap in v1)"
+        },
+        {
+          "name": "CSP Gap 1 Route: Function constructor dynamic JS eval blocked by CSP",
+          "pass": true
+        },
+        {
+          "name": "CSP Gap 2 Route: Event loop JsProxy dynamic JS eval blocked by CSP",
+          "pass": true
+        },
+        {
+          "name": "CSP Gap 3 Route: Garbage collector JsProxy dynamic JS eval blocked by CSP",
+          "pass": true
         },
         {
           "name": "Production Worker recorded deterministic simulation packet trace (20 events)",
@@ -174,10 +192,10 @@
       "browserId": "firefox",
       "browserVersion": "Mozilla Firefox 157.0.1",
       "browserPath": "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
-      "durationMs": 2810,
+      "durationMs": 2795,
       "success": true,
-      "total": 34,
-      "passed": 31,
+      "total": 38,
+      "passed": 35,
       "failed": 0,
       "xfail": 3,
       "results": [
@@ -190,7 +208,11 @@
           "pass": true
         },
         {
-          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 1912.0ms",
+          "name": "CSP active enforcement: External origin network request blocked by connect-src",
+          "pass": true
+        },
+        {
+          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 1695.0ms",
           "pass": true
         },
         {
@@ -310,6 +332,18 @@
           "pass": false,
           "xfail": true,
           "detail": "gc.get_objects() locates live JsProxy handles (Expected gap in v1)"
+        },
+        {
+          "name": "CSP Gap 1 Route: Function constructor dynamic JS eval blocked by CSP",
+          "pass": true
+        },
+        {
+          "name": "CSP Gap 2 Route: Event loop JsProxy dynamic JS eval blocked by CSP",
+          "pass": true
+        },
+        {
+          "name": "CSP Gap 3 Route: Garbage collector JsProxy dynamic JS eval blocked by CSP",
+          "pass": true
         },
         {
           "name": "Production Worker recorded deterministic simulation packet trace (20 events)",

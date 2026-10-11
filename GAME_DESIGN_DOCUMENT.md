@@ -22,7 +22,7 @@
 #### 1.3.1 ขอบเขตความปลอดภัยของ v1 (Single-Player Local Sandbox)
 - **Trust Boundary:** ผู้เล่นรันเกมบนเครื่องของตนเอง (Client-side Execution) ภายในเบราว์เซอร์ โค้ด Python/JS ของผู้เล่นทำงานอยู่ใน Web Worker ประจำแท็บของผู้เล่นเอง
 - **In Scope (สิ่งที่มีการป้องกันใน v1):**
-  - ลดความเสี่ยงการเชื่อมต่อไปยังเน็ตเวิร์กจริงภายนอก (Worker Scope Lockdown ปลด `fetch`, `XMLHttpRequest`, `WebSocket`, `importScripts`, `sendBeacon` ให้เป็น `undefined` - ถอด API ตามรายการ ผลต่อเนื่องของ Gap 1 ยังไม่รับประกันการปิดทางออกเครือข่ายทั้งหมด จนกว่า CSP จะบังคับใช้)
+  - ป้องกันการเชื่อมต่อไปยังเน็ตเวิร์กจริงภายนอกแบบ Defense-in-Depth สองชั้น: ชั้นที่ 1 บังคับใช้ CSP (`connect-src 'self'`; `script-src 'self' 'wasm-unsafe-eval'`) บล็อก Origin ภายนอกและบล็อก Function/eval จากสตริง, ชั้นที่ 2 ทำ Worker Scope Lockdown ปลด `fetch`, `XMLHttpRequest`, `WebSocket`, `importScripts`, `Worker`, `sendBeacon` ให้เป็น `undefined`
   - ควบคุมการทำงานของโค้ดไม่ให้บล็อกเบราว์เซอร์หรือทรัพยากรเครื่อง (Watchdog Timer สั่ง terminate Worker เมื่อเกิด Infinite Loop หรือค้าง พร้อมกู้คืน State)
   - ป้องกันการหลอกผลตรวจของ Auto-Grader (ตรวจจาก Discrete Simulation Event Trace ภายใน Engine จริง ไม่เชื่อผลลัพธ์จากการ `print` stdout ลอย)
   - ลดพื้นผิวการโจมตี (Attack Surface Reduction) ปิดกั้นโมดูล FFI พื้นฐานและ Import Hook จากการเรียกทั่วไป
@@ -421,3 +421,12 @@ export class NetSecDatabase extends Dexie {
 | **Phase 4: NetTopology & PacketScope Visualizers** | - พัฒนา Interactive Topology Canvas แสดงอุปกรณ์และสายเคเบิล<br/>- รับ Throttled Event Batch แสดงเม็ดพลังงาน Packet วิ่งตามสาย<br/>- พัฒนาแอพ PacketScope (Wireshark จำลอง) แสดง L2/L3/L4 Header | เห็นการเดินทางของ Packet และสามารถคลิกดักดูข้อมูลใน PacketScope ได้ |
 | **Phase 5: Campaign Chapter 1-2 & Freelance Bounties** | - บรรจุโจทย์ Chapter 1: The Local Loop & Chapter 2: The Perimeter Shield<br/>- ระบบภารกิจ MissionHub พร้อม Auto-grader ประเมินผลตาม Assertion & Constraint | ผู้เล่นสามารถเล่นจบ Chapter 1 และ 2 รับเงินรางวัลและปรับค่า Karma ได้สมบูรณ์ |
 | **Phase 6: Red Team Mechanics, Chapter 3-5 & Polish** | - เพิ่มระบบ Banner Grabbing, Pivoting, Log Incident Response สำหรับ Chapter 3-5<br/>- พัฒนาระบบร้านค้า Dual Market (Enterprise vs SilkNet)<br/>- ใส่ระบบเสียง (Web Audio API) และขัดเกลาเกมเพลย์พร้อมเล่น | เกมสมบูรณ์ระดับ Release Playable Candidate |
+
+### 9.1 Phase 0 Verification & Continuous Integration Reference
+- **CI Workflow Runner:** GitHub Actions (`runs-on: ubuntu-24.04`)
+- **CI Configuration File:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+- **CI Workflow Runs:** [GitHub Actions CI Status](https://github.com/MorohaZ/game/actions/workflows/ci.yml)
+- **CI Run Reference Pattern:** `https://github.com/MorohaZ/game/actions/runs/<run_id>`
+- **Test Artifact:** `browser-test-results.json` (อัปโหลดอัตโนมัติทุกรันผ่าน `actions/upload-artifact@v4`)
+- **เอกสารผลทดสอบและเมทริกซ์เบราว์เซอร์ฉบับเต็ม:** [`PHASE_0_ACCEPTANCE_CRITERIA.md`](PHASE_0_ACCEPTANCE_CRITERIA.md)
+
