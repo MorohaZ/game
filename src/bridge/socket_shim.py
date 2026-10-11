@@ -472,7 +472,7 @@ def _bootstrap_socket_shim(_sim_core_bridge):
 _bootstrap_socket_shim(js_sim_core)
 del _bootstrap_socket_shim
 
-# --- Adversarial Sandbox Hardening ---
+# --- Adversarial Sandbox Attack Surface Reduction ---
 
 # 1. Neutralize and unregister internal Pyodide JS module registrations
 try:

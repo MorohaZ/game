@@ -15,9 +15,26 @@
 1. **Industry-Grade Hands-on Experience:** เลียนแบบพฤติกรรมจริงของ Cisco IOS (User Exec, Privileged, Config, Interface, Access-List with Wildcard Mask & Implicit Deny) และ Linux Bash ตามมาตรฐานจริง
 2. **Deterministic Simulation Core:** แยกระบบจำลองเครือข่ายออกจาก React UI ทำงานด้วย Virtual Clock (Ticks) และ Seeded PRNG ให้ผลลัพธ์ซ้ำเดิมทุกครั้งสำหรับการประเมิน Auto-grader
 3. **Co-located Worker Sandbox (Sync-over-Direct Bridge):** แก้ปัญหา Pyodide synchronous I/O โดยการรัน Simulation Core ร่วมใน Sandbox Worker ทำให้คำสั่ง `socket.connect()` และ `send()` ทำงานแบบ Synchronous ตรงเข้า Engine ได้ทันทีโดยไม่ต้องรอ postMessage ข้าม Thread
-4. **Hardened Multi-Layer Security Sandbox:** ผู้เล่นไม่สามารถหลุดออกจาก Sandbox ไปยิงเน็ตเวิร์กจริง, มี Watchdog ควบคุมเวลา/หน่วยความจำ ป้องกัน `while True` ค้าง, และระบบ Auto-grader ตรวจสอบจาก Simulation Event Trace จริง ไม่ใช่การเช็ค stdout ปลอม
+4. **Multi-Layer Attack Surface Reduction (Defense-in-Depth):** ลดพื้นผิวการโจมตี (Attack Surface Reduction) จำกัดการเข้าถึง API ภายนอก, ป้องกันการยิงเน็ตเวิร์กจริงจาก Worker, มี Watchdog ควบคุมเวลา/หน่วยความจำ ป้องกัน `while True` ค้าง, และระบบ Auto-grader ตรวจสอบจาก Simulation Event Trace จริง ไม่ใช่การเช็ค stdout ปลอม (ยอมรับ Known Gaps ใน v1 สำหรับโหมด Single-Player ในเครื่องตัวเอง)
 
----
+### 1.3 Threat Model & Out of Scope (v1)
+
+#### 1.3.1 ขอบเขตความปลอดภัยของ v1 (Single-Player Local Sandbox)
+- **Trust Boundary:** ผู้เล่นรันเกมบนเครื่องของตนเอง (Client-side Execution) ภายในเบราว์เซอร์ โค้ด Python/JS ของผู้เล่นทำงานอยู่ใน Web Worker ประจำแท็บของผู้เล่นเอง
+- **In Scope (สิ่งที่มีการป้องกันใน v1):**
+  - บล็อกการเชื่อมต่อไปยังเน็ตเวิร์กจริงภายนอก (Worker Scope Lockdown ปลด `fetch`, `XMLHttpRequest`, `WebSocket`, `importScripts`, `sendBeacon` ให้เป็น `undefined`)
+  - ควบคุมการทำงานของโค้ดไม่ให้บล็อกเบราว์เซอร์หรือทรัพยากรเครื่อง (Watchdog Timer สั่ง terminate Worker เมื่อเกิด Infinite Loop หรือค้าง พร้อมกู้คืน State)
+  - ป้องกันการหลอกผลตรวจของ Auto-Grader (ตรวจจาก Discrete Simulation Event Trace ภายใน Engine จริง ไม่เชื่อผลลัพธ์จากการ `print` stdout ลอย)
+  - ลดพื้นผิวการโจมตี (Attack Surface Reduction) ปิดกั้นโมดูล FFI พื้นฐานและ Import Hook จากการเรียกทั่วไป
+- **Out of Scope (สิ่งที่อยู่นอกเหนือขอบเขตความปลอดภัยของ v1):**
+  - การรันโค้ดร่วมกันระหว่างผู้เล่นหลายคน (Untrusted Multi-Tenant / Multiplayer Execution)
+  - ระบบแชร์สคริปต์ระหว่างผู้เล่น (Community Script Sharing) หรือภารกิจที่ดาวน์โหลดโค้ดภายนอกมาทำงาน
+  - กระดานคะแนนแข่งขันระดับโลก (Competitive Global Leaderboards)
+  - การปิดช่องโหว่ระดับ WASM/FFI สมบูรณ์ 100% (ยอมรับ 3 Known Gaps ที่ยังหลงเหลืออยู่ใน Pyodide สำหรับ v1)
+  - การป้องกันไม่ให้เจ้าของเครื่องแก้ไข DOM หรือ Memory ในเบราว์เซอร์ของตัวเอง
+
+#### 1.3.2 แผนรองรับโหมด Multiplayer / Leaderboards ในอนาคต (v2+)
+หากเกมมีการเพิ่มระบบ Leaderboard, ภารกิจชุมชน, หรือการแข่งขัน ผู้เล่นจะต้องไม่รันสคริปต์ใน Realm เดียวกับ Simulation Core อีกต่อไป จะต้องแยก Realm โดยสิ้นเชิง (เช่น Sandboxed Iframe ต่าง Origin หรือ Cross-Origin Worker) และใช้การตรวจประเมินผลผ่าน Server-side Replay Verification แทน
 
 ## 2. Core Gameplay Loop
 
@@ -90,7 +107,7 @@ flowchart LR
    - หากพอร์ตถูกกรอง/ดรอป (Silent Drop): คืน `110` สำหรับ `connect_ex()` หรือโยน `socket.timeout`
    - หากไม่มีเส้นทาง: โยน `OSError(113, "No route to host")`
 
-### 4.2 การ Hardening Python Socket Shim & Complete API Implementation
+### 4.2 การลดพื้นผิวโจมตี (Attack Surface Reduction) และโครงสร้าง Python Socket Shim
 โค้ด Bootstrap Shim ที่ inject ลงใน Pyodide มีฟังก์ชันครบถ้วนตามมาตรฐาน:
 ```python
 # Injected Bootstrap in Co-located Pyodide Worker
@@ -218,7 +235,7 @@ class VirtualRequests:
 sys.modules['requests'] = VirtualRequests
 ```
 
-### 4.4 Sandbox Hardening & Security Isolation
+### 4.4 Sandbox Attack Surface Reduction & Security Guardrails
 1. **Sanitizing Global Scope ใน Pyodide:**
    - ลบ `sys.modules['js']` ทิ้งทันทีหลังรัน Bootstrap เสร็จสิ้น เพื่อป้องกันผู้เล่นเขียน `from js import fetch` หรือ `from js import globalThis`
    - ปิดกั้นโมดูล `urllib`, `http.client`, `pyodide.http`

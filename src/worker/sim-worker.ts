@@ -76,39 +76,40 @@ async function loadPyodideRuntime(): Promise<any> {
     localIndexURL = `${self.location.origin}/pyodide/`;
   }
 
-  // 1. Pre-loaded on global scope (if any)
-  if (typeof (self as any).loadPyodide === 'function') {
-    return await (self as any).loadPyodide({
+  // Single strict loading path: ESM dynamic import of local Pyodide bundle from local assets
+  const pyodideUrl = `${localIndexURL}pyodide.mjs`;
+  try {
+    const pyodideModule = await import(/* @vite-ignore */ pyodideUrl);
+    if (!pyodideModule || typeof pyodideModule.loadPyodide !== 'function') {
+      throw new Error(`Invalid Pyodide module at '${pyodideUrl}': loadPyodide function not found.`);
+    }
+    return await pyodideModule.loadPyodide({
       indexURL: localIndexURL,
     });
+  } catch (err: any) {
+    throw new Error(`CRITICAL PYODIDE INITIALIZATION FAILURE: Failed to load local Pyodide runtime from '${pyodideUrl}': ${err?.message || err}`);
   }
+}
 
-  // 2. ESM dynamic import of local Pyodide bundle
-  try {
-    const pyodideUrl = `${localIndexURL}pyodide.mjs`;
-    const pyodideModule = await import(/* @vite-ignore */ pyodideUrl);
-    if (typeof pyodideModule.loadPyodide === 'function') {
-      return await pyodideModule.loadPyodide({
-        indexURL: localIndexURL,
-      });
-    }
-  } catch {
-    // Continue to package import
+function getWorkerLockdownReport(): Record<string, boolean> {
+  const g = self as any;
+  const apis = [
+    'fetch',
+    'XMLHttpRequest',
+    'WebSocket',
+    'indexedDB',
+    'importScripts',
+    'Worker',
+    'SharedWorker',
+    'BroadcastChannel',
+    'openDatabase',
+  ];
+  const report: Record<string, boolean> = {};
+  for (const api of apis) {
+    report[api] = typeof g[api] === 'undefined';
   }
-
-  // 3. Bundled npm package fallback
-  try {
-    const pyodideModule = await import('pyodide');
-    if (typeof pyodideModule.loadPyodide === 'function') {
-      return await pyodideModule.loadPyodide({
-        indexURL: localIndexURL,
-      });
-    }
-  } catch (e: any) {
-    throw new Error(`Failed to load local Pyodide WebAssembly runtime from '${localIndexURL}': ${e?.message || e}`);
-  }
-
-  throw new Error(`Unable to initialize Pyodide runtime from local assets.`);
+  report['sendBeacon'] = Boolean(!g.navigator || typeof g.navigator.sendBeacon === 'undefined');
+  return report;
 }
 
 async function doInitialize(): Promise<void> {
@@ -132,13 +133,16 @@ async function doInitialize(): Promise<void> {
       // If delete is not supported on globals map, fallback
     }
 
-    // Fail-Closed Worker Scope Hardening: strip dangerous capabilities before user code runs
+    // Fail-Closed Worker Scope Lockdown: strip dangerous capabilities before user code runs
     enforceWorkerScopeLockdown();
 
     isReady = true;
     postMsg({
       type: 'READY',
-      payload: { version: pyodide.version || '0.26.4' },
+      payload: {
+        version: pyodide.version || '0.26.4',
+        lockdown: getWorkerLockdownReport(),
+      },
     });
   } catch (error: any) {
     isReady = false;
@@ -154,7 +158,10 @@ async function initialize(): Promise<void> {
   if (isReady && pyodide) {
     postMsg({
       type: 'READY',
-      payload: { version: pyodide.version || '0.26.4' },
+      payload: {
+        version: pyodide.version || '0.26.4',
+        lockdown: getWorkerLockdownReport(),
+      },
     });
     return;
   }
@@ -206,7 +213,7 @@ function handleRunCode(code: string, runId: string): void {
   const startTime = performance.now();
 
   try {
-    pyodide.runPython(code);
+    const pyRes = pyodide.runPython(code);
     const duration = performance.now() - startTime;
     const newEvents = sim.getTraceLog().slice(traceBeforeCount);
 
@@ -217,6 +224,7 @@ function handleRunCode(code: string, runId: string): void {
         success: true,
         stdout: stdoutBuf,
         stderr: stderrBuf,
+        result: typeof pyRes === 'string' ? pyRes : undefined,
         durationMs: duration,
         newEvents,
       },

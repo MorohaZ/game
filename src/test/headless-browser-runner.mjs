@@ -1,7 +1,7 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,8 +12,62 @@ const distPyodideDir = path.resolve(projectRoot, 'dist/pyodide');
 const distAssetsDir = path.resolve(projectRoot, 'dist/assets');
 const shimPath = path.resolve(projectRoot, 'src/bridge/socket_shim.py');
 
+function findPlaywrightBinaries() {
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  const playwrightRoots = [
+    process.env.PLAYWRIGHT_BROWSERS_PATH,
+    path.join(home, '.cache', 'ms-playwright'),
+    path.join(process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'ms-playwright'),
+  ].filter(Boolean);
+
+  const binaries = { chromium: [], firefox: [], webkit: [] };
+
+  for (const root of playwrightRoots) {
+    if (!fs.existsSync(root)) continue;
+    try {
+      const entries = fs.readdirSync(root);
+      for (const entry of entries) {
+        const fullDir = path.join(root, entry);
+        if (entry.startsWith('chromium-')) {
+          const candidates = [
+            path.join(fullDir, 'chrome-linux', 'chrome'),
+            path.join(fullDir, 'chrome-win', 'chrome.exe'),
+            path.join(fullDir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
+          ];
+          for (const c of candidates) {
+            if (fs.existsSync(c)) binaries.chromium.push(c);
+          }
+        } else if (entry.startsWith('firefox-')) {
+          const candidates = [
+            path.join(fullDir, 'firefox', 'firefox'),
+            path.join(fullDir, 'firefox', 'firefox.exe'),
+            path.join(fullDir, 'firefox', 'Nightly.app', 'Contents', 'MacOS', 'firefox'),
+          ];
+          for (const c of candidates) {
+            if (fs.existsSync(c)) binaries.firefox.push(c);
+          }
+        } else if (entry.startsWith('webkit-')) {
+          const candidates = [
+            path.join(fullDir, 'pw_run.sh'),
+            path.join(fullDir, 'minibrowser'),
+            path.join(fullDir, 'minibrowser-gtk', 'MiniBrowser'),
+            path.join(fullDir, 'Playwright.exe'),
+            path.join(fullDir, 'pw_run.bat'),
+          ];
+          for (const c of candidates) {
+            if (fs.existsSync(c)) binaries.webkit.push(c);
+          }
+        }
+      }
+    } catch {}
+  }
+  return binaries;
+}
+
 export function getAvailableBrowsers() {
-  const user = process.env.USERNAME || 'ken11';
+  const user = process.env.USERNAME || process.env.USER || 'ken11';
+  const pwBinaries = findPlaywrightBinaries();
+
   const candidates = [
     {
       id: 'chromium',
@@ -26,6 +80,7 @@ export function getAvailableBrowsers() {
         '/usr/bin/google-chrome',
         '/usr/bin/chromium',
         '/usr/bin/chromium-browser',
+        ...pwBinaries.chromium,
       ],
     },
     {
@@ -37,6 +92,7 @@ export function getAvailableBrowsers() {
         'C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe',
         `C:\\Users\\${user}\\AppData\\Local\\Mozilla Firefox\\firefox.exe`,
         '/usr/bin/firefox',
+        ...pwBinaries.firefox,
       ],
     },
     {
@@ -47,6 +103,12 @@ export function getAvailableBrowsers() {
         'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
         'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
       ],
+    },
+    {
+      id: 'webkit',
+      name: 'Playwright WebKit',
+      type: 'webkit',
+      paths: pwBinaries.webkit,
     },
   ];
 
@@ -62,7 +124,7 @@ export function getAvailableBrowsers() {
   return available;
 }
 
-export function createTestServer() {
+export function createTestServer(options = {}) {
   const shimCode = fs.readFileSync(shimPath, 'utf-8');
   
   // Use production built sim-worker bundle
@@ -74,7 +136,6 @@ export function createTestServer() {
     }
   }
 
-  // Fallback to source test worker if build is missing
   if (!workerCode) {
     const fallbackPath = path.resolve(__dirname, 'browser-test-worker.js');
     if (fs.existsSync(fallbackPath)) {
@@ -90,10 +151,11 @@ export function createTestServer() {
       const url = new URL(req.url, `http://${req.headers.host}`);
 
       if (url.pathname === '/' || url.pathname === '/index.html') {
-        res.writeHead(200, {
-          'Content-Type': 'text/html; charset=utf-8',
-          // Explicitly NO COOP / COEP headers: proves static hosting compliance
-        });
+        const headers = { 'Content-Type': 'text/html; charset=utf-8' };
+        if (options.cspHeader) {
+          headers['Content-Security-Policy'] = options.cspHeader;
+        }
+        res.writeHead(200, headers);
         res.end(`<!DOCTYPE html>
 <html>
 <head>
@@ -115,11 +177,21 @@ export function createTestServer() {
     }
 
     function recordAssert(pass, name, detail) {
-      results.push({ name, pass, detail });
+      results.push({ name, pass: Boolean(pass), detail });
       if (pass) {
         log('  ✔ [PASS] ' + name);
       } else {
         log('  ✖ [FAIL] ' + name + (detail ? ' (' + detail + ')' : ''));
+      }
+    }
+
+    function recordXFailAssert(pass, name, gapDetail) {
+      if (pass) {
+        results.push({ name, pass: true, xfail: false });
+        log('  ✔ [PASS/XPASS] ' + name + ' (Gap is closed!)');
+      } else {
+        results.push({ name, pass: false, xfail: true, detail: gapDetail });
+        log('  ⚠ [XFAIL] ' + name + ' (' + gapDetail + ')');
       }
     }
 
@@ -171,130 +243,291 @@ export function createTestServer() {
         const initDur = (performance.now() - tInitStart).toFixed(1);
         recordAssert(true, 'Production Web Worker initialized with local Pyodide v' + (initResp.payload?.version || '0.26.4') + ' in ' + initDur + 'ms');
 
-        // Test Python synchronous networking & core functionality
-        log('3. Running Python synchronous networking & contract tests...');
+        // Verify Fail-Closed Worker Scope Lockdown for all 10 APIs individually
+        log('2b. Verifying Worker API Scope Lockdown for all APIs individually...');
+        const lockdown = initResp.payload?.lockdown || {};
+        const apisToCheck = [
+          'fetch',
+          'XMLHttpRequest',
+          'WebSocket',
+          'indexedDB',
+          'importScripts',
+          'Worker',
+          'SharedWorker',
+          'BroadcastChannel',
+          'openDatabase',
+          'sendBeacon',
+        ];
+        for (const api of apisToCheck) {
+          const isNeutralized = Boolean(lockdown[api]);
+          recordAssert(isNeutralized, 'Worker API lockdown: self.' + api + ' is neutralized');
+        }
+
+        // Test Python synchronous networking & core functionality with individual assertions
+        log('3. Running Python synchronous networking tests (per-key verification)...');
         const netTestPy = \`
-import socket
+import socket, json
+
+net_res = {}
 
 # Test 1: Open Port & HTTP Exchange
-s1 = socket.socket()
-s1.connect(('192.168.1.10', 80))
-s1.sendall(b"GET / HTTP/1.1\\\\r\\\\nHost: corp.local\\\\r\\\\n\\\\r\\\\n")
-resp = s1.recv(1024)
-assert b"200 OK" in resp
-s1.close()
+try:
+    s1 = socket.socket()
+    s1.connect(('192.168.1.10', 80))
+    s1.sendall(b"GET / HTTP/1.1\\\\r\\\\nHost: corp.local\\\\r\\\\n\\\\r\\\\n")
+    resp = s1.recv(1024)
+    net_res["connect_open_http"] = (b"200 OK" in resp)
+    s1.close()
+except Exception:
+    net_res["connect_open_http"] = False
 
 # Test 2: Closed Port TCP RST
-s2 = socket.socket()
-assert s2.connect_ex(('192.168.1.10', 22)) == 111
+try:
+    s2 = socket.socket()
+    net_res["connect_closed_rst"] = (s2.connect_ex(('192.168.1.10', 22)) == 111)
+    s2.close()
+except Exception:
+    net_res["connect_closed_rst"] = False
 
 # Test 3: Filtered Port TCP Drop
-s3 = socket.socket()
-assert s3.connect_ex(('10.0.0.1', 80)) == 110
+try:
+    s3 = socket.socket()
+    net_res["connect_filtered_drop"] = (s3.connect_ex(('10.0.0.1', 80)) == 110)
+    s3.close()
+except Exception:
+    net_res["connect_filtered_drop"] = False
 
 # Test 4: Host Unreachable
-s4 = socket.socket()
-assert s4.connect_ex(('172.16.50.1', 80)) == 113
+try:
+    s4 = socket.socket()
+    net_res["connect_host_unreach"] = (s4.connect_ex(('172.16.50.1', 80)) == 113)
+    s4.close()
+except Exception:
+    net_res["connect_host_unreach"] = False
 
 # Test 5: Transparent DNS Resolution
-s5 = socket.socket()
-assert s5.connect_ex(('corp.local', 80)) == 0
-s5.close()
+try:
+    s5 = socket.socket()
+    net_res["dns_resolution"] = (s5.connect_ex(('corp.local', 80)) == 0)
+    s5.close()
+except Exception:
+    net_res["dns_resolution"] = False
 
-# Test 6: Zero-Copy memoryview
-s6 = socket.socket()
-s6.connect(('192.168.1.10', 80))
-mv = memoryview(b"GET / HTTP/1.1\\\\r\\\\nHost: corp.local\\\\r\\\\n\\\\r\\\\n")
-n = s6.send(mv)
-assert n > 0
-resp6 = s6.recv(1024)
-assert b"200 OK" in resp6
-s6.close()
+# Test 6: Memoryview buffer handling
+try:
+    s6 = socket.socket()
+    s6.connect(('192.168.1.10', 80))
+    mv = memoryview(b"GET / HTTP/1.1\\\\r\\\\nHost: corp.local\\\\r\\\\n\\\\r\\\\n")
+    n = s6.send(mv)
+    resp6 = s6.recv(1024)
+    net_res["memoryview_send"] = (n > 0 and b"200 OK" in resp6)
+    s6.close()
+except Exception:
+    net_res["memoryview_send"] = False
 
-print("NET_TESTS_OK")
+print("__NET_RESULTS__:" + json.dumps(net_res))
 \`;
 
-        const netRes = await sendAndAwait({
+        const netResMsg = await sendAndAwait({
           type: 'RUN_CODE',
           payload: { code: netTestPy, runId: 'net-run-1' }
         }, 'CODE_RESULT');
 
-        recordAssert(netRes.payload.success === true, 'Python socket.connect(192.168.1.10:80) and HTTP exchange completed synchronously');
-        recordAssert(netRes.payload.success === true, 'Python socket.connect_ex(192.168.1.10:22) returned 111 (ECONNREFUSED / TCP RST)');
-        recordAssert(netRes.payload.success === true, 'Python socket.connect_ex(10.0.0.1:80) returned 110 (ETIMEDOUT / TCP Drop)');
-        recordAssert(netRes.payload.success === true, 'Python socket.connect_ex(172.16.50.1:80) returned 113 (EHOSTUNREACH)');
-        recordAssert(netRes.payload.success === true, 'Python DNS transparent resolution resolved "corp.local" synchronously');
-        recordAssert(netRes.payload.success === true, 'Python Memoryview zero-copy data transmission completed without DoS');
+        let netParsed = {};
+        try {
+          const m = (netResMsg.payload.stdout || '').match(/__NET_RESULTS__:(.*)/);
+          if (m) netParsed = JSON.parse(m[1].trim());
+        } catch {}
 
-        // Test Adversarial Sandbox Hardening in real Production Worker
-        log('4. Running Adversarial Sandbox penetration tests...');
+        recordAssert(netParsed.connect_open_http === true, 'Python socket.connect(192.168.1.10:80) and HTTP exchange completed synchronously');
+        recordAssert(netParsed.connect_closed_rst === true, 'Python socket.connect_ex(192.168.1.10:22) returned 111 (ECONNREFUSED / TCP RST)');
+        recordAssert(netParsed.connect_filtered_drop === true, 'Python socket.connect_ex(10.0.0.1:80) returned 110 (ETIMEDOUT / TCP Drop)');
+        recordAssert(netParsed.connect_host_unreach === true, 'Python socket.connect_ex(172.16.50.1:80) returned 113 (EHOSTUNREACH)');
+        recordAssert(netParsed.dns_resolution === true, 'Python DNS transparent resolution resolved "corp.local" synchronously');
+        recordAssert(netParsed.memoryview_send === true, 'Python memoryview buffer transmission completed without DoS');
+
+        // Test Attack Surface Reduction in real Production Worker
+        log('4. Running Attack Surface Reduction tests (per-key verification)...');
         const advTestPy = \`
-# Attack 1: _pyodide._importhook & jsfinder.jsproxies escape
+import json
+
+adv_res = {}
+
+# Attack 1: _pyodide._importhook & jsfinder blocked
 try:
     import _pyodide._importhook
-    assert False, "import _pyodide._importhook must be blocked"
+    adv_res["importhook_blocked"] = False
 except (ImportError, ModuleNotFoundError):
-    pass
+    try:
+        __import__('_pyodide._importhook')
+        adv_res["importhook_blocked"] = False
+    except (ImportError, ModuleNotFoundError):
+        adv_res["importhook_blocked"] = True
 
-try:
-    __import__('_pyodide._importhook')
-    assert False, "__import__('_pyodide._importhook') must be blocked"
-except (ImportError, ModuleNotFoundError):
-    pass
-
-# Attack 2: _pyodide_core and trigger_fatal_error
+# Attack 2: _pyodide_core and trigger_fatal_error blocked
 try:
     import _pyodide_core
-    assert False, "import _pyodide_core must be blocked"
+    adv_res["pyodide_core_blocked"] = False
 except (ImportError, ModuleNotFoundError):
-    pass
+    adv_res["pyodide_core_blocked"] = True
 
-# Attack 3: pyodide root package & pyodide.ffi
+# Attack 3: pyodide root package & pyodide.ffi blocked
 try:
     import pyodide
-    assert False, "import pyodide must be blocked"
+    adv_res["pyodide_ffi_blocked"] = False
 except (ImportError, ModuleNotFoundError):
-    pass
-
-try:
-    import pyodide.ffi
-    assert False, "import pyodide.ffi must be blocked"
-except (ImportError, ModuleNotFoundError):
-    pass
-
-# Attack 4: Standard forbidden modules
-for mod in ['ctypes', 'pyodide_js', 'js', 'micropip', '_posixsubprocess']:
     try:
-        __import__(mod)
-        assert False, f"import {mod} must be blocked"
+        import pyodide.ffi
+        adv_res["pyodide_ffi_blocked"] = False
     except (ImportError, ModuleNotFoundError):
-        pass
+        adv_res["pyodide_ffi_blocked"] = True
+
+# Attack 4: Standard forbidden modules blocked individually
+def _check_mod_blocked(name):
+    try:
+        __import__(name)
+        return False
+    except (ImportError, ModuleNotFoundError, TypeError):
+        return True
+    except Exception:
+        return True
+
+adv_res["ctypes_blocked"] = _check_mod_blocked('ctypes')
+adv_res["pyodide_js_blocked"] = _check_mod_blocked('pyodide_js')
+adv_res["js_blocked"] = _check_mod_blocked('js')
+adv_res["micropip_blocked"] = _check_mod_blocked('micropip')
+adv_res["posixsubprocess_blocked"] = _check_mod_blocked('_posixsubprocess')
 
 # Attack 5: Global introspection leaks
-assert 'js_sim_core' not in globals()
-assert '_sim_core' not in globals()
+adv_res["globals_purged"] = ('js_sim_core' not in globals() and '_sim_core' not in globals())
 
-print("ADV_TESTS_OK")
+print("__ADV_RESULTS__:" + json.dumps(adv_res))
 \`;
 
-        const advRes = await sendAndAwait({
+        const advResMsg = await sendAndAwait({
           type: 'RUN_CODE',
           payload: { code: advTestPy, runId: 'adv-run-1' }
         }, 'CODE_RESULT');
 
-        recordAssert(advRes.payload.success === true, 'Adversarial attack: _pyodide._importhook & jsfinder blocked');
-        recordAssert(advRes.payload.success === true, 'Adversarial attack: _pyodide_core & trigger_fatal_error blocked');
-        recordAssert(advRes.payload.success === true, 'Adversarial attack: pyodide and pyodide.ffi blocked');
-        recordAssert(advRes.payload.success === true, 'Adversarial attack: ctypes, pyodide_js, js, micropip blocked');
-        recordAssert(advRes.payload.success === true, 'Introspection Isolation: js_sim_core and _sim_core purged from globals');
+        let advParsed = {};
+        try {
+          const m = (advResMsg.payload.stdout || '').match(/__ADV_RESULTS__:(.*)/);
+          if (m) advParsed = JSON.parse(m[1].trim());
+        } catch {}
+
+        recordAssert(advParsed.importhook_blocked === true, 'Adversarial attack surface: _pyodide._importhook & jsfinder blocked');
+        recordAssert(advParsed.pyodide_core_blocked === true, 'Adversarial attack surface: _pyodide_core & trigger_fatal_error blocked');
+        recordAssert(advParsed.pyodide_ffi_blocked === true, 'Adversarial attack surface: pyodide and pyodide.ffi blocked');
+        recordAssert(advParsed.ctypes_blocked === true, 'Adversarial attack surface: ctypes module blocked');
+        recordAssert(advParsed.pyodide_js_blocked === true, 'Adversarial attack surface: pyodide_js module blocked');
+        recordAssert(advParsed.js_blocked === true, 'Adversarial attack surface: js module blocked');
+        recordAssert(advParsed.micropip_blocked === true, 'Adversarial attack surface: micropip package blocked');
+        recordAssert(advParsed.posixsubprocess_blocked === true, 'Adversarial attack surface: _posixsubprocess module blocked');
+        recordAssert(advParsed.globals_purged === true, 'Introspection Isolation: js_sim_core and _sim_core purged from globals');
+
+        // Test Expected-to-Fail Known Gaps
+        log('5. Running Expected-to-Fail (xfail) tests for 3 Known Gaps...');
+        const gapsTestPy = \`
+import sys, socket, json
+
+gap_res = {}
+
+# Known Gap 1: Facade prototype / constructor traversal
+gap1_sealed = True
+try:
+    s = socket.socket()
+    for meth_name in ['connect_ex', 'send', 'recv', 'bind', 'listen', 'accept', 'close', '__init__']:
+        fn = getattr(s, meth_name, None)
+        if not fn:
+            continue
+        func = getattr(fn, '__func__', fn)
+        for cell in (getattr(func, '__closure__', None) or ()):
+            obj = getattr(cell, 'cell_contents', None)
+            if obj is None:
+                continue
+            if hasattr(obj, 'constructor') and hasattr(obj.constructor, 'constructor'):
+                if 'Function' in str(obj.constructor.constructor) or callable(obj.constructor.constructor):
+                    gap1_sealed = False
+                    break
+            for attr in ['createSocket', 'connectSocket', 'sendSocket', 'recvSocket']:
+                if hasattr(obj, attr):
+                    m = getattr(obj, attr)
+                    if hasattr(m, 'constructor') and ('Function' in str(m.constructor) or callable(m.constructor)):
+                        gap1_sealed = False
+                        break
+            if not gap1_sealed:
+                break
+        if not gap1_sealed:
+            break
+    s.close()
+except Exception:
+    pass
+gap_res["gap1_sealed"] = gap1_sealed
+
+# Known Gap 2: Pyodide event-loop / asyncio internal JsProxy references
+gap2_sealed = True
+try:
+    import asyncio
+    try:
+        loop = asyncio.get_event_loop()
+        for k, v in getattr(loop, '__dict__', {}).items():
+            if 'JsProxy' in type(v).__name__ or 'JsProxy' in str(type(v)):
+                gap2_sealed = False
+                break
+    except Exception:
+        pass
+    if gap2_sealed:
+        for mod in list(sys.modules.values()):
+            if mod is None:
+                continue
+            for k, v in getattr(mod, '__dict__', {}).items():
+                if 'scheduleCallback' in str(k) or 'loadedPackages' in str(k) or 'JsProxy' in type(v).__name__:
+                    gap2_sealed = False
+                    break
+            if not gap2_sealed:
+                break
+    if gap2_sealed:
+        gap2_sealed = False
+except Exception:
+    gap2_sealed = False
+gap_res["gap2_sealed"] = gap2_sealed
+
+# Known Gap 3: Python garbage collection (gc) object graph traversal
+gap3_sealed = True
+try:
+    import gc
+    proxies = [o for o in gc.get_objects() if 'JsProxy' in type(o).__name__]
+    if len(proxies) > 0:
+        gap3_sealed = False
+except Exception:
+    pass
+gap_res["gap3_sealed"] = gap3_sealed
+
+print("__GAP_RESULTS__:" + json.dumps(gap_res))
+\`;
+
+        const gapsResMsg = await sendAndAwait({
+          type: 'RUN_CODE',
+          payload: { code: gapsTestPy, runId: 'gaps-run-1' }
+        }, 'CODE_RESULT');
+
+        let gapsParsed = {};
+        try {
+          const m = (gapsResMsg.payload.stdout || '').match(/__GAP_RESULTS__:(.*)/);
+          if (m) gapsParsed = JSON.parse(m[1].trim());
+        } catch {}
+
+        recordXFailAssert(gapsParsed.gap1_sealed === true, 'Known Gap 1: Bridge facade prototype isolation', 'Constructor chain reaches Function (Expected gap in v1)');
+        recordXFailAssert(gapsParsed.gap2_sealed === true, 'Known Gap 2: Pyodide event-loop / asyncio internal JsProxy isolation', 'Event loop / modules leak JsProxy (Expected gap in v1)');
+        recordXFailAssert(gapsParsed.gap3_sealed === true, 'Known Gap 3: Garbage collection object graph traversal isolation', 'gc.get_objects() locates live JsProxy handles (Expected gap in v1)');
 
         // Test Deterministic Simulation Event Trace via Worker RPC
-        log('5. Testing Simulation Event Trace via Worker RPC...');
+        log('6. Testing Simulation Event Trace via Worker RPC...');
         const traceRes = await sendAndAwait({ type: 'GET_TRACE' }, 'TRACE_RESULT');
         recordAssert(traceRes.payload.events && traceRes.payload.events.length >= 5, 'Production Worker recorded deterministic simulation packet trace (' + (traceRes.payload.events ? traceRes.payload.events.length : 0) + ' events)');
 
         // Test Simulator Snapshot and Restore via Worker RPC
-        log('6. Testing Snapshot & Restore via Worker RPC...');
+        log('7. Testing Snapshot & Restore via Worker RPC...');
         const snapRes = await sendAndAwait({ type: 'GET_SNAPSHOT' }, 'SNAPSHOT_RESULT');
         recordAssert(!!snapRes.payload.snapshot && snapRes.payload.snapshot.nodes.length >= 3, 'Worker GET_SNAPSHOT returned valid topology snapshot');
 
@@ -304,8 +537,8 @@ print("ADV_TESTS_OK")
         }, 'RESTORE_DONE');
         recordAssert(restoreRes.type === 'RESTORE_DONE', 'Worker RESTORE_SNAPSHOT successfully restored simulator state');
 
-        // Final Report
-        const allPass = results.every(r => r.pass);
+        // Final Report: allPass requires every non-xfail test to pass
+        const allPass = results.every(r => r.pass || r.xfail === true);
         statusEl.textContent = allPass ? 'ALL TESTS PASSED' : 'TESTS FAILED';
         statusEl.style.color = allPass ? '#4ade80' : '#f87171';
 
@@ -316,7 +549,8 @@ print("ADV_TESTS_OK")
             success: allPass,
             total: results.length,
             passed: results.filter(r => r.pass).length,
-            failed: results.filter(r => !r.pass).length,
+            failed: results.filter(r => !r.pass && !r.xfail).length,
+            xfail: results.filter(r => r.xfail).length,
             results: results
           }),
         });
@@ -331,7 +565,8 @@ print("ADV_TESTS_OK")
             error: err.message || String(err),
             total: results.length,
             passed: results.filter(r => r.pass).length,
-            failed: results.filter(r => !r.pass).length + 1,
+            failed: results.filter(r => !r.pass && !r.xfail).length + 1,
+            xfail: results.filter(r => r.xfail).length,
             results: results
           }),
         });
@@ -346,7 +581,11 @@ print("ADV_TESTS_OK")
       }
 
       if (url.pathname === '/worker.js') {
-        res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+        const headers = { 'Content-Type': 'application/javascript; charset=utf-8' };
+        if (options.workerCspHeader || options.cspHeader) {
+          headers['Content-Security-Policy'] = options.workerCspHeader || options.cspHeader;
+        }
+        res.writeHead(200, headers);
         res.end(workerCode);
         return;
       }
@@ -438,9 +677,21 @@ print("ADV_TESTS_OK")
   });
 }
 
-export async function runBrowserTest(browserTarget) {
-  const { port, server, waitForReport, close } = await createTestServer();
+export async function runBrowserTest(browserTarget, options = {}) {
+  const { port, server, waitForReport, close } = await createTestServer(options);
   const testUrl = `http://127.0.0.1:${port}/index.html`;
+
+  let browserVersion = 'unknown';
+  try {
+    const v = execSync(`"${browserTarget.path}" --version`, { timeout: 3000 }).toString().trim();
+    if (v) browserVersion = v;
+  } catch {}
+  if (browserVersion === 'unknown' && process.platform === 'win32') {
+    try {
+      const v = execSync(`powershell -NoProfile -Command "(Get-Item '${browserTarget.path}').VersionInfo.ProductVersion"`, { timeout: 3000 }).toString().trim();
+      if (v) browserVersion = `${browserTarget.name} ${v}`;
+    } catch {}
+  }
 
   let browserProcess;
   const tmpDir = path.resolve(projectRoot, `.browser-tmp-${browserTarget.id}`);
@@ -466,6 +717,11 @@ export async function runBrowserTest(browserTarget) {
       tmpDir,
       testUrl,
     ]);
+  } else if (browserTarget.type === 'webkit') {
+    browserProcess = spawn(browserTarget.path, [
+      '--headless',
+      testUrl,
+    ]);
   } else {
     browserProcess = spawn(browserTarget.path, [testUrl]);
   }
@@ -475,6 +731,7 @@ export async function runBrowserTest(browserTarget) {
     return {
       browser: browserTarget.name,
       browserId: browserTarget.id,
+      browserVersion,
       browserPath: browserTarget.path,
       ...report,
     };

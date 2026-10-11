@@ -1,5 +1,7 @@
 {
-  "timestamp": "2026-10-10T06:35:58.798Z",
+  "timestamp": "2026-10-10T09:52:04.129Z",
+  "commit": "7c6086e8ddf48ad2ffd97c733c883484e7beb85e",
+  "pyodideVersion": "0.26.4",
   "environment": {
     "platform": "win32",
     "nodeVersion": "v22.16.0",
@@ -12,18 +14,60 @@
     {
       "browser": "Google Chrome (Chromium)",
       "browserId": "chromium",
+      "browserVersion": "Google Chrome (Chromium) 154.0.8037.98",
       "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
       "success": true,
-      "total": 16,
-      "passed": 16,
+      "total": 33,
+      "passed": 30,
       "failed": 0,
+      "xfail": 3,
       "results": [
         {
           "name": "Zero COOP/COEP compliance: window.crossOriginIsolated is false",
           "pass": true
         },
         {
-          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 2526.3ms",
+          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 2897.2ms",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.fetch is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.XMLHttpRequest is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.WebSocket is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.indexedDB is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.importScripts is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.Worker is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.SharedWorker is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.BroadcastChannel is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.openDatabase is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.sendBeacon is neutralized",
           "pass": true
         },
         {
@@ -47,28 +91,62 @@
           "pass": true
         },
         {
-          "name": "Python Memoryview zero-copy data transmission completed without DoS",
+          "name": "Python memoryview buffer transmission completed without DoS",
           "pass": true
         },
         {
-          "name": "Adversarial attack: _pyodide._importhook & jsfinder blocked",
+          "name": "Adversarial attack surface: _pyodide._importhook & jsfinder blocked",
           "pass": true
         },
         {
-          "name": "Adversarial attack: _pyodide_core & trigger_fatal_error blocked",
+          "name": "Adversarial attack surface: _pyodide_core & trigger_fatal_error blocked",
           "pass": true
         },
         {
-          "name": "Adversarial attack: pyodide and pyodide.ffi blocked",
+          "name": "Adversarial attack surface: pyodide and pyodide.ffi blocked",
           "pass": true
         },
         {
-          "name": "Adversarial attack: ctypes, pyodide_js, js, micropip blocked",
+          "name": "Adversarial attack surface: ctypes module blocked",
+          "pass": true
+        },
+        {
+          "name": "Adversarial attack surface: pyodide_js module blocked",
+          "pass": true
+        },
+        {
+          "name": "Adversarial attack surface: js module blocked",
+          "pass": true
+        },
+        {
+          "name": "Adversarial attack surface: micropip package blocked",
+          "pass": true
+        },
+        {
+          "name": "Adversarial attack surface: _posixsubprocess module blocked",
           "pass": true
         },
         {
           "name": "Introspection Isolation: js_sim_core and _sim_core purged from globals",
           "pass": true
+        },
+        {
+          "name": "Known Gap 1: Bridge facade prototype isolation",
+          "pass": false,
+          "xfail": true,
+          "detail": "Constructor chain reaches Function (Expected gap in v1)"
+        },
+        {
+          "name": "Known Gap 2: Pyodide event-loop / asyncio internal JsProxy isolation",
+          "pass": false,
+          "xfail": true,
+          "detail": "Event loop / modules leak JsProxy (Expected gap in v1)"
+        },
+        {
+          "name": "Known Gap 3: Garbage collection object graph traversal isolation",
+          "pass": false,
+          "xfail": true,
+          "detail": "gc.get_objects() locates live JsProxy handles (Expected gap in v1)"
         },
         {
           "name": "Production Worker recorded deterministic simulation packet trace (20 events)",
@@ -87,18 +165,60 @@
     {
       "browser": "Mozilla Firefox (Gecko)",
       "browserId": "firefox",
+      "browserVersion": "Mozilla Firefox 157.0.1",
       "browserPath": "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
       "success": true,
-      "total": 16,
-      "passed": 16,
+      "total": 33,
+      "passed": 30,
       "failed": 0,
+      "xfail": 3,
       "results": [
         {
           "name": "Zero COOP/COEP compliance: window.crossOriginIsolated is false",
           "pass": true
         },
         {
-          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 1976.0ms",
+          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 3687.0ms",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.fetch is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.XMLHttpRequest is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.WebSocket is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.indexedDB is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.importScripts is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.Worker is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.SharedWorker is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.BroadcastChannel is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.openDatabase is neutralized",
+          "pass": true
+        },
+        {
+          "name": "Worker API lockdown: self.sendBeacon is neutralized",
           "pass": true
         },
         {
@@ -122,28 +242,62 @@
           "pass": true
         },
         {
-          "name": "Python Memoryview zero-copy data transmission completed without DoS",
+          "name": "Python memoryview buffer transmission completed without DoS",
           "pass": true
         },
         {
-          "name": "Adversarial attack: _pyodide._importhook & jsfinder blocked",
+          "name": "Adversarial attack surface: _pyodide._importhook & jsfinder blocked",
           "pass": true
         },
         {
-          "name": "Adversarial attack: _pyodide_core & trigger_fatal_error blocked",
+          "name": "Adversarial attack surface: _pyodide_core & trigger_fatal_error blocked",
           "pass": true
         },
         {
-          "name": "Adversarial attack: pyodide and pyodide.ffi blocked",
+          "name": "Adversarial attack surface: pyodide and pyodide.ffi blocked",
           "pass": true
         },
         {
-          "name": "Adversarial attack: ctypes, pyodide_js, js, micropip blocked",
+          "name": "Adversarial attack surface: ctypes module blocked",
+          "pass": true
+        },
+        {
+          "name": "Adversarial attack surface: pyodide_js module blocked",
+          "pass": true
+        },
+        {
+          "name": "Adversarial attack surface: js module blocked",
+          "pass": true
+        },
+        {
+          "name": "Adversarial attack surface: micropip package blocked",
+          "pass": true
+        },
+        {
+          "name": "Adversarial attack surface: _posixsubprocess module blocked",
           "pass": true
         },
         {
           "name": "Introspection Isolation: js_sim_core and _sim_core purged from globals",
           "pass": true
+        },
+        {
+          "name": "Known Gap 1: Bridge facade prototype isolation",
+          "pass": false,
+          "xfail": true,
+          "detail": "Constructor chain reaches Function (Expected gap in v1)"
+        },
+        {
+          "name": "Known Gap 2: Pyodide event-loop / asyncio internal JsProxy isolation",
+          "pass": false,
+          "xfail": true,
+          "detail": "Event loop / modules leak JsProxy (Expected gap in v1)"
+        },
+        {
+          "name": "Known Gap 3: Garbage collection object graph traversal isolation",
+          "pass": false,
+          "xfail": true,
+          "detail": "gc.get_objects() locates live JsProxy handles (Expected gap in v1)"
         },
         {
           "name": "Production Worker recorded deterministic simulation packet trace (20 events)",

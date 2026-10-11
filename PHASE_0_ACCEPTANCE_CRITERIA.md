@@ -2,7 +2,7 @@
 
 **Project:** `NetSec: Zero-Day Protocol`  
 **Phase:** Phase 0 (Browser-Native Python Networking & Deterministic Simulation Engine)  
-**Status:** **CONDITIONAL GO → FULL GO (All 5 Conditions Verified and Passing)**  
+**Status:** **GO with known gaps** (v1 Single-Player Scope; v2 Multiplayer Realm Isolation Required)  
 **Verification Suite:** `npm test` (`node test-runner.mjs`)  
 **Artifacts Generated:** `browser-test-results.json`  
 
@@ -30,43 +30,60 @@ Because `SharedArrayBuffer` is completely avoided:
 
 ## 2. Real Headless Browser E2E Test Verification Record
 
-Real headless browser tests were executed against both Google Chrome (Chromium) and Mozilla Firefox (Gecko) on Windows:
+Real headless browser tests were executed against Google Chrome (Chromium) and Mozilla Firefox (Gecko) on Windows. The table below is automatically maintained from `browser-test-results.json`:
 
-| Browser Engine | Binary Path | Worker Type | Pyodide Load | Tests Passed | Duration | Status |
+<!-- BROWSER_TEST_TABLE_START -->
+| Browser Engine | Browser Version | Binary Path | Worker Type | Tests Passed | Duration | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Google Chrome (Chromium)** | `C:\Program Files\Google\Chrome\Application\chrome.exe` | ES Module Worker | 2085.3 ms | **17 / 17 (100%)** | 2742 ms | **PASS** |
-| **Mozilla Firefox (Gecko)** | `C:\Program Files\Mozilla Firefox\firefox.exe` | ES Module Worker | 2785.0 ms | **17 / 17 (100%)** | 5001 ms | **PASS** |
+| **Google Chrome (Chromium)** | Google Chrome (Chromium) 154.0.8037.98 | `C:\Program Files\Google\Chrome\Application\chrome.exe` | ES Module Worker | **30 / 33** (+3 xfail) | - | **PASS** |
+| **Mozilla Firefox (Gecko)** | Mozilla Firefox 157.0.1 | `C:\Program Files\Mozilla Firefox\firefox.exe` | ES Module Worker | **30 / 33** (+3 xfail) | - | **PASS** |
+<!-- BROWSER_TEST_TABLE_END -->
 
 The full structured verification payload is recorded in [`browser-test-results.json`](./browser-test-results.json).
 
 ---
 
-## 3. Adversarial Sandbox Security Specification
+## 3. Adversarial Sandbox Attack Surface Reduction Specification
 
 | Threat Vector | Mitigation Mechanism | Verification Test |
 | :--- | :--- | :--- |
-| **Internal Pyodide Hook Bypass** | `_pyodide._importhook` and `_pyodide_core` are completely blocked. `jsfinder.jsproxies` is purged and uninstalled; direct and indirect imports (`importlib`, `__import__`) of all `_pyodide*` and `pyodide*` packages are blocked at `sys.meta_path[0]`. | Python Test 15 & Browser Test 9, 10, 11 |
-| **Worker Scope Lockdown (Fail-Closed)** | `self.fetch`, `self.XMLHttpRequest`, `self.WebSocket`, `self.indexedDB`, `self.importScripts`, `self.Worker`, `self.SharedWorker`, `self.BroadcastChannel`, and `navigator.sendBeacon` are made non-writable `undefined` with strict fail-closed assertion checks. | Browser E2E Tests & Production Worker Bundle |
+| **Internal Pyodide Hook Bypass** | `_pyodide._importhook` and `_pyodide_core` are blocked. `jsfinder.jsproxies` is cleared; direct and indirect imports (`importlib`, `__import__`) of all `_pyodide*` and `pyodide*` packages are intercepted at `sys.meta_path[0]`. | Python Test 15 & Browser Test |
+| **Worker Scope Lockdown (Fail-Closed)** | `self.fetch`, `self.XMLHttpRequest`, `self.WebSocket`, `self.indexedDB`, `self.importScripts`, `self.Worker`, `self.SharedWorker`, `self.BroadcastChannel`, and `navigator.sendBeacon` are neutralized with strict fail-closed assertion checks. | Browser E2E Tests & Production Worker Bundle |
 | **Browser DOM / JS Escape via FFI** | `js` and `pyodide_js` modules are deleted from `sys.modules`, unregistered via `unregister_js_module`, forbidden in `sys.meta_path` `_SandboxFinder`, blocked in `importlib.import_module`, and `pyodide.code.run_js` is deleted. | Python Acceptance Test 15, 15b, 15c |
 | **Low-Level Native Memory Access** | `ctypes` and `_posixsubprocess` modules are deleted from `sys.modules`, hooked in `sys.meta_path`, and blocked in `importlib`. | Node & Browser Tests (blocked) |
 | **Arbitrary Package Installation** | `micropip` module is revoked, blocked in `sys.meta_path`, and forbidden in import hooks. | Python Acceptance Test 15 |
 | **Global Object Introspection** | Global references (`js_sim_core`, `_sim_core_bridge`) are purged from globals immediately after bootstrapping the socket shim. | Python Acceptance Test 15 |
-| **Closure & Reflection Introspection** | The object exposed to Python is a restricted `VirtualSocketFacade` containing only socket methods. Administrative methods (`setNodeId`, `setDnsProtectionEnabled`, `getSnapshot`, `restoreSnapshot`, `addDnsRecord`), security tokens, and internal simulator (`#sim`) are strictly absent. | Python Acceptance Test 15d & Browser Test 14 |
+| **Administrative Facade Isolation** | The facade exposed to Python exposes only socket methods. Administrative methods (`setNodeId`, `setDnsProtectionEnabled`, `getSnapshot`, `restoreSnapshot`, `addDnsRecord`), security tokens, and internal simulator (`#sim`) are absent. *(Note: JavaScript prototype/constructor traversal remains a Known Gap in v1).* | Python Acceptance Test 15d & Known Gap 1 |
 | **Cross-Node FD Tampering** | Bridge verifies active node ownership on every socket FD (`s.ownerNodeId === this.#defaultNodeId`). Scripts cannot read, send, or close sockets belonging to other nodes. | Bridge Test 2g3 |
-| **Cryptographic Token Security** | `generateSecureToken()` utilizes `crypto.getRandomValues()` (20-byte random nonce) rather than pseudo-random generators. Mandatory token validation rejects calls without a valid token. | Bridge Test 2g, 2g2 & Production Worker |
-| **Buffer Memory Exhaustion (DoS)** | Python `_to_bytes` replaces `list(data)` with zero-copy `memoryview(raw).tobytes()`. Node buffer capped at 8MB, socket buffer at 1MB, payload at 1MB. | Bridge Test 13 & Browser Test 8 |
+| **Cryptographic Token Security** | `generateSecureToken()` utilizes `crypto.getRandomValues()` (20-byte random nonce) rather than pseudo-random generators. Mandatory token validation rejects administrative calls without a valid token. | Bridge Test 2g, 2g2 & Production Worker |
+| **Buffer Memory Exhaustion (DoS)** | Python `_to_bytes` utilizes `memoryview(raw).tobytes()` to eliminate unbounded Python list conversions. Node buffer capped at 8MB, socket buffer at 1MB, payload at 1MB. | Bridge Test 13 & Browser Test |
 
 ---
 
-## 4. Concurrency Model & Resource Ceilings
+## 4. Known Gaps (v1 Behavioral Vectors)
 
-### 4.1 Concurrency Model
+In alignment with the Single-Player Threat Model (v1), the following 3 behavioral vectors are recognized and documented. They are tracked via expected-to-fail tests (`xfail`) and are considered acceptable for single-player local execution on the player's own machine:
+
+1. **Bridge Facade Prototype / Constructor Traversal:**
+   - **Behavioral Description:** Traversal from exposed JavaScript bridge methods across the FFI via object prototype and constructor references (e.g., reaching the host `Function` constructor) to execute arbitrary JavaScript within the Web Worker.
+   - **Status in v1:** Known Gap (tracked via xfail test). Mitigated in single-player scope by Worker scope lockdown (all network egress APIs removed from Worker). For multi-tenant / leaderboard modes (v2), separate realm isolation is required.
+2. **Pyodide Runtime Event Loop & Asyncio JsProxy References:**
+   - **Behavioral Description:** Pyodide runtime internals and module registries (such as event-loop scheduling callbacks `scheduleCallback` and loaded package registries `loadedPackages`) maintaining active `JsProxy` handles that can be accessed from Python to reach the host JavaScript environment.
+   - **Status in v1:** Known Gap (tracked via xfail test).
+3. **Python Runtime Object Graph Traversal via Garbage Collector:**
+   - **Behavioral Description:** Using Python runtime heap introspection (such as `gc.get_objects()`) to inspect in-memory objects and locate internal `JsProxy` handles, circumventing module-level namespace and import restrictions.
+   - **Status in v1:** Known Gap (tracked via xfail test).
+
+---
+
+## 5. Concurrency Model & Resource Ceilings
+
+### 5.1 Concurrency Model
 - **Worker Execution Loop:** Dedicated Web Worker running a single-threaded discrete-event simulation engine.
-- **Event Dispatch:** Synchronous discrete ticks (`tick += 1`) advance virtual time deterministically.
-- **Race Condition Immunity:** Single-threaded execution eliminates race conditions, thread contention, and non-deterministic packet arrivals.
+- **Event Dispatch:** Synchronous discrete ticks (`tick += 1`) advance virtual time deterministically within the dedicated single-threaded worker runtime.
 - **Watchdog State Restoration & UI Queueing:** The UI client maintains a message queue during worker initialization/respawns. When the watchdog terminates a hanging worker, the latest simulation snapshot is restored automatically upon respawn.
 
-### 4.2 Resource Ceilings
+### 5.2 Resource Ceilings
 
 ```typescript
 export const RESOURCE_LIMITS = {
@@ -101,9 +118,8 @@ export const RESOURCE_LIMITS = {
 | **AC-15** | **Mission-Configurable DNS Protection (Red Team Spoofing Mode)** | `VirtualSocketBridge.setDnsProtectionEnabled()` | Suite 2: Test 2.8 | **PASS** |
 | **AC-16** | **Bridge Snapshot & Restore** | `VirtualSocketBridge.getSnapshot()`, `restoreSnapshot()` | Suite 2: Test 2.9 | **PASS** |
 | **AC-17** | Synchronous Python Socket API (`connect`, `connect_ex`, `sendall`, `recv`) | `src/bridge/socket_shim.py` | Suite 3: Python Tests 1–14 | **PASS** |
-| **AC-18** | **Adversarial Python Sandbox Lockdown** (`sys.meta_path`, `importlib`, `pyodide.ffi`) | `src/bridge/socket_shim.py` | Suite 3: Python Test 15, 15b, 15c | **PASS** |
-| **AC-18b**| **Introspection Hardening: Facade Closure Non-Leakage** | `VirtualSocketBridge.getSocketFacade()` | Suite 3: Python Test 15d & Browser Test 7b | **PASS** |
-| **AC-19** | Zero-Copy Python Buffer Handling (`memoryview`, eliminating memory DoS) | `src/bridge/socket_shim.py` (`_to_bytes`) | Suite 3: Python Test 9 & Browser Test 7 | **PASS** |
+| **AC-18** | **Adversarial Python Sandbox Lockdown** (`sys.meta_path`, `importlib`, `pyodide.ffi`) | `src/bridge/socket_shim.py` | Suite 3: Python Test 15 | **PASS** |
+| **AC-19** | **Python Buffer Handling (DoS Limits via `memoryview`)** | `src/bridge/socket_shim.py` (`_to_bytes`) | Suite 3: Python Test 9 & Browser Test | **PASS** |
 | **AC-20** | Watchdog State Snapshot Restoration & Message Queue Buffering | `SimWorkerClient.restoreSnapshot()`, `enqueue()` | Unit & Integration Verification | **PASS** |
 | **AC-21** | **Headless Chromium Execution (Chrome, ES Module Worker, local Pyodide)** | `src/test/headless-browser-runner.mjs` | Suite 5: Chrome Test (17/17) | **PASS** |
 | **AC-22** | **Headless Gecko Execution (Firefox, ES Module Worker, local Pyodide)** | `src/test/headless-browser-runner.mjs` | Suite 5: Firefox Test (17/17) | **PASS** |
@@ -121,11 +137,12 @@ Execution of `npm test` runs all 5 test suites synchronously and end-to-end:
   TEST SUMMARY
 ================================================================
 
-  Total Tests Run: 79
-  Passed:         79
+  Total Tests Run: 93
+  Passed:         90
+  Expected Gaps:  3 (xfail)
   Failed:         0
 
   ★★★ PHASE 0 PROOF-OF-CONCEPT SPIKE PASSED ALL ACCEPTANCE CRITERIA ★★★
 ```
 
-Both real headless browsers (Google Chrome and Mozilla Firefox) successfully initialized Pyodide from local assets inside an ES Module Web Worker, enforced Worker scope lockdown and Python sandbox isolation, and passed all 17 in-worker networking and adversarial tests without requiring COOP or COEP headers. All 5 conditions of the Conditional Go are closed.
+Both real headless browsers (Google Chrome and Mozilla Firefox) successfully initialized Pyodide from local assets inside an ES Module Web Worker, enforced Worker scope lockdown, and executed deterministic networking tests without requiring COOP or COEP headers. Phase 0 proceeds as **GO with known gaps** under the Single-Player Threat Model (v1). All 3 Known Gaps (Known Gap 1: Bridge facade prototype traversal, Known Gap 2: Event-loop / asyncio JsProxy isolation, Known Gap 3: Garbage collection object graph traversal) are tracked via explicit expected-to-fail (`xfail`) tests. Mitigations applied (prototype-null facade, import hook neutralization, Worker scope lockdown) reduce attack surface in v1 single-player execution, while complete realm isolation is planned for v2 multiplayer / leaderboard modes.

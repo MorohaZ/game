@@ -17,6 +17,7 @@ export interface CodeResultSuccess {
   stderr: string;
   durationMs: number;
   newEvents: PacketTraceEntry[];
+  result?: unknown;
 }
 
 export interface CodeResultFailure {
@@ -32,7 +33,7 @@ export interface CodeResultFailure {
 export type CodeResultPayload = CodeResultSuccess | CodeResultFailure;
 
 export type WorkerOutMessage =
-  | { type: 'READY'; payload: { version: string } }
+  | { type: 'READY'; payload: { version: string; lockdown?: Record<string, boolean> } }
   | { type: 'INIT_ERROR'; payload: { error: string } }
   | { type: 'CODE_RESULT'; payload: CodeResultPayload }
   | { type: 'TRACE_RESULT'; payload: { events: PacketTraceEntry[] } }

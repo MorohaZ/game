@@ -60,7 +60,8 @@ export class VirtualSocketBridge implements VirtualSocketFacade {
    * Passed to untrusted Python runtime as `js_sim_core`.
    */
   public getSocketFacade(): VirtualSocketFacade {
-    const facade: VirtualSocketFacade = {
+    const facade = Object.create(null) as VirtualSocketFacade;
+    Object.assign(facade, {
       createSocket: (family?: number, type?: number) => this.createSocket(family, type),
       setSocketTimeout: (fd: number, timeout: number | null) => this.setSocketTimeout(fd, timeout),
       connectSocket: (fd: number, ip: string, port: number | string, timeout?: number | null) =>
@@ -77,7 +78,7 @@ export class VirtualSocketBridge implements VirtualSocketFacade {
       getSockName: (fd: number) => this.getSockName(fd),
       getPeerName: (fd: number) => this.getPeerName(fd),
       resolveDns: (host: string) => this.resolveDns(host),
-    };
+    });
     return Object.freeze(facade);
   }
 
