@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-24.04
@@ -13,10 +16,12 @@ jobs:
       CI: 'true'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.2.0
         with:
           node-version: 22
           cache: 'npm'
@@ -40,7 +45,7 @@ jobs:
         run: git diff --exit-code -- _headers public/_headers netlify.toml vercel.json src/bridge/python-socket-shim.ts
 
       - name: Cache Playwright WebKit browser
-        uses: actions/cache@v4
+        uses: actions/cache@1bd1e324130025608b47f2e00f39661b73d40df8 # v4.2.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -53,7 +58,7 @@ jobs:
 
       - name: Upload browser test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: browser-test-results
           path: browser-test-results.json

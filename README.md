@@ -70,20 +70,35 @@ In standard Pyodide, Python socket operations are synchronous (e.g., `s.connect(
      ```python
      import socket
 
-     # 1. Open Port
-     s1 = socket.socket()
-     s1.connect(('192.168.1.10', 80)) # Returns None
-     assert s1.connect_ex(('192.168.1.10', 80)) == 0
+     # Pattern A: Standard socket.connect() (raises exceptions on failure)
+     # 1. Open Port: connects successfully, returns None
+     s_open = socket.socket()
+     s_open.connect(('192.168.1.10', 80))
+     s_open.close()
 
-     # 2. Closed Port
-     s2 = socket.socket()
-     # Raises ConnectionRefusedError
-     assert s2.connect_ex(('192.168.1.10', 22)) == 111
+     # 2. Closed Port: raises ConnectionRefusedError synchronously
+     s_closed = socket.socket()
+     try:
+         s_closed.connect(('192.168.1.10', 22))
+     except ConnectionRefusedError:
+         pass  # Expected ECONNREFUSED
+     s_closed.close()
 
-     # 3. Filtered Port
-     s3 = socket.socket()
-     # Raises TimeoutError
-     assert s3.connect_ex(('10.0.0.1', 80)) == 110
+     # 3. Filtered Port: raises TimeoutError synchronously
+     s_filtered = socket.socket()
+     try:
+         s_filtered.connect(('10.0.0.1', 80))
+     except TimeoutError:
+         pass  # Expected ETIMEDOUT
+     s_filtered.close()
+
+     # Pattern B: Non-throwing socket.connect_ex() (returns errno integer)
+     s_ex = socket.socket()
+     assert s_ex.connect_ex(('192.168.1.10', 80)) == 0    # Success (errno 0)
+     assert s_ex.connect_ex(('192.168.1.10', 22)) == 111  # ECONNREFUSED (errno 111)
+     assert s_ex.connect_ex(('10.0.0.1', 80)) == 110      # ETIMEDOUT (errno 110)
+     assert s_ex.connect_ex(('172.16.50.1', 80)) == 113   # EHOSTUNREACH (errno 113)
+     s_ex.close()
      ```
 
 3. **Simulation Event Trace Capture**:
@@ -130,12 +145,28 @@ Open `http://localhost:3000` in your browser:
 ### 5. Repository File Structure
 
 ```
+├── .github/
+│   └── workflows/
+│       └── ci.yml                  # GitHub Actions CI workflow (lint, test, browser E2E)
+├── scripts/
+│   ├── copy-pyodide.mjs            # Bundles local Pyodide runtime assets to public/dist
+│   ├── csp-config.mjs              # Centralized CSP configuration & hosting sync generator
+│   ├── csp-experiment.mjs          # CSP behavioral probe and header validation tool
+│   ├── generate-browser-table.mjs  # Generates acceptance criteria markdown table
+│   └── sync-shim.mjs               # Compiles socket_shim.py to python-socket-shim.ts
+├── public/
+│   └── _headers                    # Cloudflare Pages / Static hosting headers
+├── _headers                        # Netlify static headers with CSP & nosniff
+├── netlify.toml                    # Netlify deployment configuration
+├── vercel.json                     # Vercel deployment headers configuration
 ├── GAME_DESIGN_DOCUMENT.md         # Original system architecture document
+├── PHASE_0_ACCEPTANCE_CRITERIA.md  # Acceptance criteria & verification record matrix
 ├── package.json                    # Scripts and dependencies
+├── package-lock.json               # Deterministic dependency lockfile
 ├── tsconfig.json                   # TypeScript configuration
 ├── vite.config.ts                  # Vite & Web Worker bundle settings
 ├── index.html                      # Interactive Phase 0 Spike UI
-├── test-runner.mjs                 # Zero-dependency CLI test harness
+├── test-runner.mjs                 # Zero-dependency CLI & browser test harness
 ├── README.md                       # Phase 0 documentation & verification report
 └── src/
     ├── core/
@@ -144,7 +175,10 @@ Open `http://localhost:3000` in your browser:
     │   └── default-topology.ts     # Pre-configured topology (Attacker, Corp-Web, Firewalled)
     ├── bridge/
     │   ├── VirtualSocketBridge.ts  # Synchronous JS bridge (`js_sim_core`)
-    │   └── python-socket-shim.ts   # Python bootstrap code injected into Pyodide
+    │   ├── python-socket-shim.ts   # Auto-generated Python bootstrap injected into Pyodide
+    │   └── socket_shim.py          # Master Python socket replacement module & sandbox policy
+    ├── security/
+    │   └── csp-config.ts           # TypeScript CSP constants and assertCspActive probe
     ├── worker/
     │   ├── sim-worker.ts           # Co-located Web Worker loading Pyodide + Simulator
     │   └── worker-protocol.ts      # Typed postMessage RPC protocol
@@ -155,5 +189,21 @@ Open `http://localhost:3000` in your browser:
     │   └── styles.css              # Cyber OS terminal styling
     └── test/
         ├── NetworkSimulator.test.ts
-        └── VirtualSocketBridge.test.ts
+        ├── VirtualSocketBridge.test.ts
+        └── headless-browser-runner.mjs # Multi-browser headless automation engine
 ```
+
+---
+
+### 6. Project Description & Status
+
+**NetSec: Zero-Day Protocol** is an adversarial cybersecurity simulation and educational hacking game that executes natively in the browser. Players write standard, synchronous Python socket code to discover hosts, map networks, exploit misconfigurations, and interact with virtual targets in real-time.
+
+Phase 0 validates the **Co-located Worker Architecture**, combining Pyodide WASM and a deterministic discrete-event discrete simulation engine in the same Web Worker. This achieves synchronous Python networking without deadlocks, without requiring `SharedArrayBuffer` or COOP/COEP headers, and provides full compatibility with standard static hosting (GitHub Pages, Netlify, Vercel, Cloudflare Pages).
+
+---
+
+### 7. License
+
+MIT License. Copyright (c) 2026 NetSec Protocol Contributors.
+
