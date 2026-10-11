@@ -60,26 +60,32 @@ export class VirtualSocketBridge implements VirtualSocketFacade {
    * Passed to untrusted Python runtime as `js_sim_core`.
    */
   public getSocketFacade(): VirtualSocketFacade {
-    const facade = Object.create(null) as VirtualSocketFacade;
-    Object.assign(facade, {
-      createSocket: (family?: number, type?: number) => this.createSocket(family, type),
-      setSocketTimeout: (fd: number, timeout: number | null) => this.setSocketTimeout(fd, timeout),
-      connectSocket: (fd: number, ip: string, port: number | string, timeout?: number | null) =>
-        this.connectSocket(fd, ip, port, timeout),
-      sendSocket: (fd: number, data: unknown) => this.sendSocket(fd, data),
-      sendToSocket: (fd: number, ip: string, port: number | string, data: unknown) =>
-        this.sendToSocket(fd, ip, port, data),
-      recvSocket: (fd: number, maxBytes: number) => this.recvSocket(fd, maxBytes),
-      recvFromSocket: (fd: number, maxBytes: number) => this.recvFromSocket(fd, maxBytes),
-      bindSocket: (fd: number, ip: string, port: number | string) => this.bindSocket(fd, ip, port),
-      listenSocket: (fd: number, backlog?: number) => this.listenSocket(fd, backlog),
-      acceptSocket: (fd: number) => this.acceptSocket(fd),
-      closeSocket: (fd: number) => this.closeSocket(fd),
-      getSockName: (fd: number) => this.getSockName(fd),
-      getPeerName: (fd: number) => this.getPeerName(fd),
-      resolveDns: (host: string) => this.resolveDns(host),
-    });
-    return Object.freeze(facade);
+    const bridge = this;
+    const facade = Object.create(null) as Record<string, any>;
+
+    const createBoundMethod = <T extends (...args: any[]) => any>(fn: T): T => {
+      const bound = ((...args: any[]) => fn(...args)) as T;
+      return Object.freeze(bound);
+    };
+
+    facade.createSocket = createBoundMethod((family?: number, type?: number) => bridge.createSocket(family, type));
+    facade.setSocketTimeout = createBoundMethod((fd: number, timeout: number | null) => bridge.setSocketTimeout(fd, timeout));
+    facade.connectSocket = createBoundMethod((fd: number, ip: string, port: number | string, timeout?: number | null) =>
+      bridge.connectSocket(fd, ip, port, timeout));
+    facade.sendSocket = createBoundMethod((fd: number, data: unknown) => bridge.sendSocket(fd, data));
+    facade.sendToSocket = createBoundMethod((fd: number, ip: string, port: number | string, data: unknown) =>
+      bridge.sendToSocket(fd, ip, port, data));
+    facade.recvSocket = createBoundMethod((fd: number, maxBytes: number) => bridge.recvSocket(fd, maxBytes));
+    facade.recvFromSocket = createBoundMethod((fd: number, maxBytes: number) => bridge.recvFromSocket(fd, maxBytes));
+    facade.bindSocket = createBoundMethod((fd: number, ip: string, port: number | string) => bridge.bindSocket(fd, ip, port));
+    facade.listenSocket = createBoundMethod((fd: number, backlog?: number) => bridge.listenSocket(fd, backlog));
+    facade.acceptSocket = createBoundMethod((fd: number) => bridge.acceptSocket(fd));
+    facade.closeSocket = createBoundMethod((fd: number) => bridge.closeSocket(fd));
+    facade.getSockName = createBoundMethod((fd: number) => bridge.getSockName(fd));
+    facade.getPeerName = createBoundMethod((fd: number) => bridge.getPeerName(fd));
+    facade.resolveDns = createBoundMethod((host: string) => bridge.resolveDns(host));
+
+    return Object.freeze(facade as VirtualSocketFacade);
   }
 
   public getSessionToken(): string {

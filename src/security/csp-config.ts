@@ -48,3 +48,22 @@ export const MINIMUM_BROWSER_SUPPORT: Record<'chromium' | 'firefox' | 'webkit', 
     notes: 'WebKit 614+ / iOS 16 / macOS 13',
   },
 };
+
+/**
+ * Asserts that Content Security Policy (CSP) is actively enforcing restriction against
+ * arbitrary dynamic code generation (unsafe-eval).
+ * Throws an Error if CSP is not active (new Function succeeds).
+ */
+export function assertCspActive(): void {
+  try {
+    const fn = new Function('return 1');
+    fn();
+    throw new Error('CRITICAL SECURITY FAILURE: CSP is not active in Worker scope (eval/Function permitted). Refusing to execute user code.');
+  } catch (err: any) {
+    if (err.message && err.message.includes('CRITICAL SECURITY FAILURE')) {
+      throw err;
+    }
+    // Expected behavior under active CSP: EvalError or SecurityError blocked by CSP
+  }
+}
+

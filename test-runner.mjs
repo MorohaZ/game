@@ -8,7 +8,7 @@
 import { performance } from 'perf_hooks';
 import fs from 'fs';
 import { getAvailableBrowsers, runBrowserTest } from './src/test/headless-browser-runner.mjs';
-import { CSP_HEADER, WORKER_CSP_HEADER, MINIMUM_BROWSER_SUPPORT, syncHostingConfigs } from './scripts/csp-config.mjs';
+import { CSP_HEADER, WORKER_CSP_HEADER, MINIMUM_BROWSER_SUPPORT, syncHostingConfigs, assertCspActive } from './scripts/csp-config.mjs';
 
 const ANSI = {
   reset: '\x1b[0m',
@@ -37,6 +37,10 @@ function findInstalledBrowsers() {
     { name: 'Mozilla Firefox', path: 'C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe' },
     { name: 'Mozilla Firefox (User)', path: `C:\\Users\\${process.env.USERNAME || 'ken11'}\\AppData\\Local\\Mozilla Firefox\\firefox.exe` },
     { name: 'Brave', path: 'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe' },
+    { name: 'Google Chrome (Linux)', path: '/usr/bin/google-chrome' },
+    { name: 'Chromium (Linux)', path: '/usr/bin/chromium' },
+    { name: 'Chromium Browser (Linux)', path: '/usr/bin/chromium-browser' },
+    { name: 'Mozilla Firefox (Linux)', path: '/usr/bin/firefox' },
   ];
   const found = [];
   for (const c of candidates) {
@@ -963,22 +967,26 @@ class VirtualSocketBridge {
   }
 
   getSocketFacade() {
-    return {
-      createSocket: (family = 2, type = 1) => this.createSocket(family, type),
-      setSocketTimeout: (fd, timeout) => this.setSocketTimeout(fd, timeout),
-      connectSocket: (fd, ip, port, timeout = null) => this.connectSocket(fd, ip, port, timeout),
-      sendSocket: (fd, data) => this.sendSocket(fd, data),
-      sendToSocket: (fd, ip, port, data) => this.sendToSocket(fd, ip, port, data),
-      recvSocket: (fd, maxBytes) => this.recvSocket(fd, maxBytes),
-      recvFromSocket: (fd, maxBytes) => this.recvFromSocket(fd, maxBytes),
-      bindSocket: (fd, ip, port) => this.bindSocket(fd, ip, port),
-      listenSocket: (fd, backlog = 5) => this.listenSocket(fd, backlog),
-      acceptSocket: (fd) => this.acceptSocket(fd),
-      closeSocket: (fd) => this.closeSocket(fd),
-      getSockName: (fd) => this.getSockName(fd),
-      getPeerName: (fd) => this.getPeerName(fd),
-      resolveDns: (host) => this.resolveDns(host),
-    };
+    const bridge = this;
+    const facade = Object.create(null);
+    const createBoundMethod = (fn) => Object.freeze((...args) => fn(...args));
+
+    facade.createSocket = createBoundMethod((family = 2, type = 1) => bridge.createSocket(family, type));
+    facade.setSocketTimeout = createBoundMethod((fd, timeout) => bridge.setSocketTimeout(fd, timeout));
+    facade.connectSocket = createBoundMethod((fd, ip, port, timeout = null) => bridge.connectSocket(fd, ip, port, timeout));
+    facade.sendSocket = createBoundMethod((fd, data) => bridge.sendSocket(fd, data));
+    facade.sendToSocket = createBoundMethod((fd, ip, port, data) => bridge.sendToSocket(fd, ip, port, data));
+    facade.recvSocket = createBoundMethod((fd, maxBytes) => bridge.recvSocket(fd, maxBytes));
+    facade.recvFromSocket = createBoundMethod((fd, maxBytes) => bridge.recvFromSocket(fd, maxBytes));
+    facade.bindSocket = createBoundMethod((fd, ip, port) => bridge.bindSocket(fd, ip, port));
+    facade.listenSocket = createBoundMethod((fd, backlog = 5) => bridge.listenSocket(fd, backlog));
+    facade.acceptSocket = createBoundMethod((fd) => bridge.acceptSocket(fd));
+    facade.closeSocket = createBoundMethod((fd) => bridge.closeSocket(fd));
+    facade.getSockName = createBoundMethod((fd) => bridge.getSockName(fd));
+    facade.getPeerName = createBoundMethod((fd) => bridge.getPeerName(fd));
+    facade.resolveDns = createBoundMethod((host) => bridge.resolveDns(host));
+
+    return Object.freeze(facade);
   }
 
   setDnsProtectionEnabled(enabled) {
@@ -1566,6 +1574,17 @@ async function runAllSuites() {
     "Centralized CSP: Minimum browser engine versions verified for 'wasm-unsafe-eval' (Chromium 95+, Firefox 102+, WebKit 16.0+)"
   );
   runAssert(syncHostingConfigs(), "Centralized CSP: Hosting configurations (_headers, public/_headers, netlify.toml, vercel.json) synchronized");
+
+  // 2k CSP Self-Test assertCspActive behavior
+  let cspSelfTestRejected = false;
+  try {
+    assertCspActive();
+  } catch (err) {
+    if (err.message && err.message.includes('CRITICAL SECURITY FAILURE: CSP is not active in Worker scope')) {
+      cspSelfTestRejected = true;
+    }
+  }
+  runAssert(cspSelfTestRejected, 'Worker assertCspActive rejects code execution when CSP is not active');
 
 
   console.log(`\n${ANSI.bold}Suite 3: Pyodide Runtime & Python Socket Shim Acceptance Test${ANSI.reset}`);

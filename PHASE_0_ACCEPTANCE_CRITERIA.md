@@ -41,7 +41,7 @@ Automated headless browser E2E test suite executes on every commit in GitHub Act
 - **Test Artifact:** `browser-test-results` (`browser-test-results.json`)
 
 <!-- BROWSER_TEST_TABLE_START -->
-> **Latest CI Run Reference:** [GitHub Actions CI Workflow](https://github.com/MorohaZ/game/actions/workflows/ci.yml) | Run Reference Pattern: `https://github.com/MorohaZ/game/actions/runs/<run_id>` | Commit: `585c7b8` | Timestamp: `2026-10-11T04:00:33.119Z`
+> **Latest CI Run Reference:** [GitHub Actions CI Workflow](https://github.com/MorohaZ/game/actions/workflows/ci.yml) | Run Reference Pattern: `https://github.com/MorohaZ/game/actions/runs/<run_id>` | Commit: `31a5486` | Timestamp: `2026-10-11T13:14:45.884Z`
 
 | Browser Engine | Target Engine | Environment / Platform | Worker Type | Tests Passed | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -97,6 +97,14 @@ In alignment with the Single-Player Threat Model (v1), the following 3 behaviora
 3. **Python Runtime Object Graph Traversal via Garbage Collector:**
    - **Behavioral Description:** Using Python runtime heap introspection (such as `gc.get_objects()`) to inspect in-memory objects and locate internal `JsProxy` handles, circumventing module-level namespace and import restrictions.
    - **Status in v1 (ผลลัพธ์จริงหลังบังคับใช้ CSP):** Known Gap (คงสถานะ xfail ไว้) การค้นพบ `JsProxy` ใน heap ผ่าน `gc` ไม่เปิดทางให้รันโค้ดใหม่จากสตริงเนื่องจากติด CSP `script-src` โดยไม่มี `'unsafe-eval'`
+
+### 4.1 Defense-in-depth Layering & Remaining Known Gaps
+- **Pre-execution CSP Probe (`assertCspActive`):** `sim-worker.ts` ตรวจสอบสถานะ CSP ผ่าน `new Function('return 1')` ก่อนเริ่มรันโค้ดผู้เล่น หากระบบตรวจพบว่า eval/Function ทำงานได้ (ไม่มี CSP คุ้มกัน) เวิร์กเกอร์จะปฏิเสธการรันโค้ดผู้เล่นทันทีแบบ Fail-Closed
+- **Prototype-Null Facade:** `VirtualSocketBridge.getSocketFacade()` สร้างอ็อบเจกต์ด้วย `Object.create(null)` พร้อมปิดผนึกเมธอดแต่ละตัวด้วย closure และ `Object.freeze` เพื่อตัด prototype chain โดยตรง
+- **Namespace Sanitization:** `socket_shim.py` ล้างตัวแปรบริดจ์ (`_sim_core_bridge`, `js_sim_core`) ออกจาก global namespace และ `sys.modules['socket'].__dict__` ทันทีหลัง bootstrap
+- **Hosting Header Enforcement:** ไฟล์คอนฟิกโฮสติ้ง (`_headers`, `public/_headers`, `netlify.toml`, `vercel.json`) ครอบคลุมทุกเส้นทาง (`/*`, `/(.*)`) ยืนยัน CSP และ `X-Content-Type-Options: nosniff` ทั่วทั้งไซต์
+- **Architectural Limit (Remaining Gaps):** การแยก Realm Boundary ในระดับ WASM C-Extension (Pyodide internals) ถือเป็นข้อจำกัดเชิงสถาปัตยกรรมของ v1 ซึ่งคงสถานะ xfail ไว้สำหรับ single-player และมีแผนปรับเป็น full realm isolation ใน v2 Multiplayer
+
 
 ---
 

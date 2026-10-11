@@ -2,6 +2,7 @@ import { NetworkSimulator } from '../core/NetworkSimulator';
 import { createDefaultTopology } from '../core/default-topology';
 import { VirtualSocketBridge } from '../bridge/VirtualSocketBridge';
 import { Errno } from '../core/types';
+import { assertCspActive } from '../security/csp-config';
 
 export function runBridgeTests(): { passed: number; failed: number; errors: string[] } {
   const errors: string[] = [];
@@ -185,6 +186,17 @@ export function runBridgeTests(): { passed: number; failed: number; errors: stri
     tempResolved = false;
   }
   assert(tempResolved === false, 'restoreSnapshot clears uncommitted DNS records');
+
+  // 17. CSP Self-Test assertCspActive behavior
+  let cspRejectedWithoutHeader = false;
+  try {
+    assertCspActive();
+  } catch (err: any) {
+    if (err.message && err.message.includes('CRITICAL SECURITY FAILURE: CSP is not active in Worker scope')) {
+      cspRejectedWithoutHeader = true;
+    }
+  }
+  assert(cspRejectedWithoutHeader === true, 'assertCspActive must reject execution when CSP is not active');
 
   return { passed, failed, errors };
 }

@@ -582,3 +582,28 @@ for key in [
 ]:
     if key in globals():
         del globals()[key]
+
+# 8. Defense-in-depth: purge bridge references and isolate internal state
+for _mname in ['socket', '_socket']:
+    if _mname in sys.modules and sys.modules[_mname]:
+        _m_dict = getattr(sys.modules[_mname], '__dict__', {})
+        for _k in ['_sim_core_bridge', 'js_sim_core']:
+            if _k in _m_dict:
+                try:
+                    del _m_dict[_k]
+                except Exception:
+                    pass
+
+# 9. Defense-in-depth: isolate gc and asyncio internal references from player default view
+for _mod in ['gc', 'asyncio']:
+    if _mod in globals():
+        try:
+            del globals()[_mod]
+        except Exception:
+            pass
+    if _mod in sys.modules:
+        try:
+            del sys.modules[_mod]
+        except Exception:
+            pass
+

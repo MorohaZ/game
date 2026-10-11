@@ -22,6 +22,9 @@ function postMsg(msg: WorkerOutMessage): void {
   self.postMessage(msg);
 }
 
+export { assertCspActive } from '../security/csp-config';
+import { assertCspActive } from '../security/csp-config';
+
 function enforceWorkerScopeLockdown(): void {
   const g = self as any;
   const dangerousAPIs = [
@@ -213,6 +216,9 @@ function handleRunCode(code: string, runId: string): void {
   const startTime = performance.now();
 
   try {
+    // Assert active CSP environment before executing untrusted player code
+    assertCspActive();
+
     const pyRes = pyodide.runPython(code);
     const duration = performance.now() - startTime;
     const newEvents = sim.getTraceLog().slice(traceBeforeCount);
