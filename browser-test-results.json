@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-10-11T03:52:33.606Z",
-  "commit": "cdbaea6acc6c2c10aa6f3c129d2d851116fbc302",
-  "dirty": true,
+  "timestamp": "2026-10-11T04:00:33.119Z",
+  "commit": "585c7b8899b2c0c7c02a8dcbfd30b0a414ca0429",
+  "dirty": false,
   "pyodideVersion": "0.26.4",
   "environment": {
     "platform": "win32",
@@ -12,7 +12,7 @@
     "staticHostingCompatible": true
   },
   "browsersTestedCount": 2,
-  "durationMs": 6334,
+  "durationMs": 8662,
   "allPassed": true,
   "browserResults": [
     {
@@ -20,7 +20,7 @@
       "browserId": "chromium",
       "browserVersion": "Google Chrome (Chromium) 154.0.8037.98",
       "browserPath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-      "durationMs": 3539,
+      "durationMs": 5393,
       "success": true,
       "total": 38,
       "passed": 35,
@@ -40,7 +40,7 @@
           "pass": true
         },
         {
-          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 1381.7ms",
+          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 3241.0ms",
           "pass": true
         },
         {
@@ -192,7 +192,7 @@
       "browserId": "firefox",
       "browserVersion": "Mozilla Firefox 157.0.1",
       "browserPath": "C:\\Program Files\\Mozilla Firefox\\firefox.exe",
-      "durationMs": 2795,
+      "durationMs": 3269,
       "success": true,
       "total": 38,
       "passed": 35,
@@ -212,7 +212,7 @@
           "pass": true
         },
         {
-          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 1695.0ms",
+          "name": "Production Web Worker initialized with local Pyodide v0.26.4 in 1768.0ms",
           "pass": true
         },
         {
