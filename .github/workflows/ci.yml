@@ -36,8 +36,14 @@ jobs:
       - name: Build project assets
         run: npm run build
 
-      - name: Install Playwright browsers (Chromium, Firefox, WebKit)
-        run: npx --yes playwright install --with-deps chromium firefox webkit
+      - name: Cache Playwright WebKit browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright WebKit browser
+        run: npx playwright install --with-deps webkit
 
       - name: Run Headless Browser E2E suite
         run: npm run test:browser
